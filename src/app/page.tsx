@@ -1,101 +1,233 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import {
+  Heart,
+  Wallet,
+  Clock,
+  CheckCircle2,
+  MapPin,
+  Timer,
+} from "lucide-react";
+import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { useFetch } from "@/lib/use-fetch";
+import type { DashboardDTO } from "@/lib/types";
+import { formatIDRCompact } from "@/lib/format";
+import { initials } from "@/lib/utils";
+
+function formatDateBlock(date: Date) {
+  return {
+    day: date.getDate(),
+    month: date
+      .toLocaleDateString("id-ID", { month: "short" })
+      .toUpperCase()
+      .replace(".", ""),
+  };
+}
+
+export default function DashboardPage() {
+  const { data, loading, error } = useFetch<DashboardDTO>("/api/dashboard");
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="p-8">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Welcome back, Sarah! Here's what's happening today."
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {error && (
+        <div className="mb-6 rounded-md border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+          Failed to load dashboard: {error}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      <div className="mb-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<Heart className="h-5 w-5" />}
+          iconTone="gold"
+          value={loading ? "—" : String(data?.stats.eventsThisMonth ?? 0)}
+          label="Events This Month"
+        />
+        <StatCard
+          icon={<Wallet className="h-5 w-5" />}
+          iconTone="success"
+          value={loading ? "—" : formatIDRCompact(data?.stats.monthlyRevenue)}
+          label="Monthly Revenue"
+        />
+        <StatCard
+          icon={<Clock className="h-5 w-5" />}
+          iconTone="warning"
+          value={loading ? "—" : formatIDRCompact(data?.stats.outstanding)}
+          label="Outstanding"
+        />
+        <StatCard
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          iconTone="gold"
+          value={loading ? "—" : `${data?.stats.taskProgress ?? 0}%`}
+          label="Checklist Progress"
+        />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="card-base p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-ink">Upcoming Events</h3>
+            <Link
+              href="/calendar"
+              className="text-sm font-medium text-gold-dark hover:text-gold"
+            >
+              View All →
+            </Link>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {loading && (
+              <div className="text-sm text-ink-light">Loading…</div>
+            )}
+            {!loading && (data?.upcomingEvents.length ?? 0) === 0 && (
+              <div className="text-sm text-ink-light">Belum ada event mendatang.</div>
+            )}
+            {data?.upcomingEvents.slice(0, 4).map((event) => {
+              const d = formatDateBlock(new Date(event.eventDate));
+              return (
+                <div
+                  key={event.id}
+                  className="flex flex-wrap items-center gap-4 rounded-md bg-cream p-4 transition-colors hover:bg-beige"
+                >
+                  <div className="flex h-16 min-w-[60px] flex-col items-center justify-center rounded-sm border border-line bg-card px-3 py-3">
+                    <div className="font-serif text-2xl font-bold leading-none text-gold-dark">
+                      {d.day}
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-wider text-ink-light">
+                      {d.month}
+                    </div>
+                  </div>
+
+                  <div className="min-w-[200px] flex-1">
+                    <div className="text-base font-semibold text-ink">{event.names}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-[13px] text-ink-medium">
+                      <span>{event.eventType}</span>
+                      {event.venue && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {event.venue}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Progress value={event.progress} className="max-w-[200px]" />
+                      <span className="text-xs font-semibold text-ink-light">
+                        {event.progress}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {event.pic && <Badge tone="gold">PIC: {event.pic.name}</Badge>}
+                    <Badge
+                      tone={
+                        event.eventStatus === "confirmed"
+                          ? "success"
+                          : event.eventStatus === "pending"
+                          ? "warning"
+                          : "gold"
+                      }
+                    >
+                      {event.eventStatus === "confirmed"
+                        ? "Confirmed"
+                        : event.eventStatus === "pending"
+                        ? "Pending"
+                        : "Inquiry"}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="card-base p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-ink">Recent Activities</h3>
+            <Link
+              href="/reports"
+              className="text-sm font-medium text-gold-dark hover:text-gold"
+            >
+              View All →
+            </Link>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {loading && <div className="text-sm text-ink-light">Loading…</div>}
+            {data?.activities.map((activity) => (
+              <div
+                key={activity.id}
+                className="flex gap-3 border-b border-line pb-4 last:border-b-0 last:pb-0"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-light text-sm text-gold-dark">
+                  {activity.icon}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-ink">{activity.text}</p>
+                  <p className="mt-1 text-xs text-ink-light">
+                    {formatTimeAgo(activity.createdAt)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="card-base mt-5 p-6">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-ink">Crew Schedule Today</h3>
+          <Link
+            href="/crew"
+            className="text-sm font-medium text-gold-dark hover:text-gold"
+          >
+            Manage Schedule →
+          </Link>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {loading && <div className="text-sm text-ink-light">Loading…</div>}
+          {!loading && (data?.crewSchedule.length ?? 0) === 0 && (
+            <div className="text-sm text-ink-light">Belum ada crew terjadwal.</div>
+          )}
+          {data?.crewSchedule.map((member) => (
+            <div
+              key={member.id}
+              className="flex flex-wrap items-center gap-3 rounded-sm bg-cream p-3"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold-light text-sm font-semibold text-gold-dark">
+                {initials(member.name)}
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-ink">{member.name}</div>
+                <div className="text-xs text-ink-light">{member.role}</div>
+              </div>
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-ink-medium">
+                <Timer className="h-4 w-4" />
+                {member.status === "scheduled" ? "Scheduled" : "Available"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
+}
+
+function formatTimeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes} menit lalu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  return `${days} hari lalu`;
 }

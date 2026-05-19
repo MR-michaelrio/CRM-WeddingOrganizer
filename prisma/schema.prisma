@@ -1,0 +1,316 @@
+// Prisma schema for WO Premium
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Reference entities ----
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  role      String   @default("admin") // super_admin, admin, finance, crew, viewer
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  managedClients Client[]
+}
+
+// ---- Core: Client + Workbook ----
+
+model Client {
+  id          Int      @id @default(autoincrement())
+  names       String   // e.g. "Michael & Felicia"
+  email       String?
+  phone       String?
+  eventType   String   // Wedding, Sangjit, Wedding + Sangjit, Engagement, Tea Pai
+  eventDate   DateTime
+  venue       String?
+  package     String?  // Standard, Premium, Luxury
+  contractValue Decimal? @db.Decimal(15, 2)
+  status      String   @default("active") // planning, active, completed
+  eventStatus String   @default("confirmed") // confirmed, pending, inquiry
+  progress    Int      @default(0)
+  notes       String?  @db.Text
+  galleryUrl  String?  @db.Text
+  picId       Int?
+  pic         User?    @relation(fields: [picId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workbook  Workbook?
+  tasks     Task[]
+  payments  Payment[]
+  invoices  Invoice[]
+  crewAssignments CrewAssignment[]
+  designs   Design[]
+  events    CalendarEvent[]
+
+  @@index([eventDate])
+  @@index([status])
+}
+
+model Invoice {
+  id            Int       @id @default(autoincrement())
+  number        String    @unique // e.g. "INV-2026-0001"
+  clientId      Int
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type          String    // "dp" | "pelunasan"
+  // amount = jumlah yang ditagih di invoice ini (DP atau pelunasan).
+  // items   = line items (description, qty, price). Total dihitung dari sum(qty*price).
+  amount        Decimal   @db.Decimal(15, 2)
+  items         Json?     // [{description, qty, price}]
+  issuedDate    DateTime  @default(now())
+  dueDate       DateTime?
+  status        String    @default("draft") // draft, sent, paid, overdue, void
+  paidAt        DateTime?
+  notes         String?   @db.Text
+  eventLabel    String?   // baris bullet di bagian bawah, mis. "ACARA SANGJIT 06 NOVEMBER 2026"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([type])
+  @@index([status])
+}
+
+model Workbook {
+  id        Int      @id @default(autoincrement())
+  clientId  Int      @unique
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  template  String?  // wedding-ballroom, sangjit, intimate, tea-pai, custom
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sheets    Sheet[]
+}
+
+model Sheet {
+  id         Int      @id @default(autoincrement())
+  workbookId Int
+  workbook   Workbook @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  slug       String   // wedding-rundown, vendor-list, etc.
+  name       String
+  position   Int      @default(0)
+  columns    Json     // string[]
+  rows       Json     // Record<string,string>[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([workbookId, slug])
+  @@index([workbookId, position])
+}
+
+// ---- Checklist ----
+
+model Task {
+  id          Int       @id @default(autoincrement())
+  title       String
+  category    String    @default("Administration")
+  status      String    @default("todo") // todo, in_progress, review, done
+  priority    String    @default("medium") // low, medium, high
+  dueDate     DateTime?
+  assignee    String?
+  notes       String?   @db.Text
+  position    Int       @default(0)
+  clientId    Int?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, position])
+  @@index([clientId])
+}
+
+model CalendarEvent {
+  id            Int       @id @default(autoincrement())
+  title         String
+  type          String    @default("meeting") // meeting, wedding, sangjit, survey, loading, bongkar
+  startAt       DateTime
+  endAt         DateTime?
+  location      String?
+  notes         String?   @db.Text
+  meetLink      String?
+  googleEventId String?   // ID returned by Google Calendar API
+  clientId      Int?
+  client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([startAt])
+  @@index([type])
+}
+
+// Singleton row (id=1) — single Google account connected to the org
+model GoogleAccount {
+  id           Int      @id @default(1)
+  email        String
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiry       DateTime
+  scope        String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Setting {
+  id        Int      @id @default(1)
+  // Company profile
+  companyName  String   @default("WO Premium")
+  companyEmail String   @default("")
+  companyPhone String   @default("")
+  companyAddress String? @db.Text
+  // Invoice branding & footer
+  brandName     String  @default("eclipse.sangjit")
+  brandTagline  String  @default("JA BO DE TA BEK")
+  brandLogoUrl  String? @default("/logo_eclipsesangjit.png") @db.Text
+  bankName      String  @default("BCA")
+  bankAccount   String  @default("7015466197")
+  bankAccountName String @default("Michael Rio Agustino Tan")
+  signatoryName   String @default("Michael Rio Agustino Tan")
+  signatureUrl    String? @default("/ttd.png") @db.Text
+  thankYouMessage String @default("TERIMAKASIH ATAS KEPERCAYAAN ANDA")
+  // Preferences (booleans stored as Int 0/1 for portability)
+  emailNotifications Boolean @default(true)
+  autoBackup         Boolean @default(true)
+  smsReminders       Boolean @default(false)
+  twoFactorAuth      Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model Package {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  price       Decimal  @db.Decimal(15, 2)
+  description String?  @db.Text
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([position])
+}
+
+// ---- Vendors ----
+
+model Vendor {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String   // Catering, MUA, etc.
+  contact   String?
+  phone     String?
+  email     String?
+  portfolio String?
+  rating    Float    @default(0)
+  projects  Int      @default(0)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ---- Crew ----
+
+model Crew {
+  id            Int      @id @default(autoincrement())
+  name          String
+  role          String
+  phone         String?
+  email         String?
+  status        String   @default("available") // available, scheduled, off_duty
+  defaultFee    Decimal? @db.Decimal(15, 2)
+  rating        Float    @default(0)
+  projects      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignments CrewAssignment[]
+}
+
+model CrewAssignment {
+  id         Int      @id @default(autoincrement())
+  crewId     Int
+  crew       Crew     @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  clientId   Int
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role       String?
+  fee        Decimal? @db.Decimal(15, 2)
+  startTime  String?  // e.g. "08:00"
+  endTime    String?  // e.g. "18:00"
+  attendance String   @default("scheduled") // scheduled, attended, absent
+  createdAt  DateTime @default(now())
+
+  @@unique([crewId, clientId])
+}
+
+// ---- Finance ----
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  clientId    Int?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  type        String   // dp, installment, final, vendor, expense
+  method      String   @default("transfer") // transfer, cash, card, qris
+  amount      Decimal  @db.Decimal(15, 2)
+  paymentDate DateTime
+  reference   String?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([clientId])
+  @@index([type])
+  @@index([paymentDate])
+}
+
+// ---- Inventory ----
+
+model InventoryItem {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String   // Furniture, Lighting, Decoration, Structure
+  quantity  Int      @default(0)
+  available Int      @default(0)
+  unit      String   @default("pcs")
+  condition String   @default("Good") // Excellent, Good, Fair, NeedsRepair
+  location  String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---- Designs ----
+
+model Design {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String   @default("Backdrop") // Backdrop, Ceiling, Photobooth, Stage, Entrance, etc.
+  status    String   @default("pending") // approved, pending, revision
+  thumbnail String?  // emoji or URL
+  fileUrl   String?
+  notes     String?  @db.Text
+  clientId  Int?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  uploadedAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([status])
+}
+
+// ---- Activity feed (for dashboard) ----
+
+model Activity {
+  id        Int      @id @default(autoincrement())
+  type      String   // payment, task, vendor, design, meeting
+  text      String   @db.Text
+  icon      String   @default("✓")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
