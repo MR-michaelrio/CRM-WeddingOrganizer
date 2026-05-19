@@ -1,20 +1,26 @@
 import type { Metadata } from "next";
-import { Inter, Cormorant_Garamond } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: [
+    { path: "./fonts/Inter-latin.woff2", style: "normal" },
+    { path: "./fonts/Inter-latin-ext.woff2", style: "normal" },
+  ],
   variable: "--font-inter",
-  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
+  fallback: ["-apple-system", "BlinkMacSystemFont", "sans-serif"],
 });
 
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
+const cormorant = localFont({
+  src: [
+    { path: "./fonts/CormorantGaramond-latin.woff2", style: "normal" },
+    { path: "./fonts/CormorantGaramond-latin-ext.woff2", style: "normal" },
+  ],
   variable: "--font-cormorant",
-  weight: ["400", "500", "600", "700"],
   display: "swap",
+  fallback: ["serif"],
 });
 
 export const metadata: Metadata = {
