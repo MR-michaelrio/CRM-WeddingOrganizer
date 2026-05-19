@@ -3,25 +3,94 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-main: #f8f5f0;
+  --bg-card: #ffffff;
+  --accent-gold: #d4b483;
+  --accent-gold-light: #e8d9bf;
+  --accent-gold-dark: #b89a6a;
+  --text-dark: #2e2a27;
+  --text-medium: #6b6662;
+  --text-light: #9d9691;
+  --beige: #efe7dd;
+  --border: #e5ded5;
+  --success: #5a9b7d;
+  --warning: #d99b5a;
+  --danger: #d97757;
+  --sidebar-w: 280px;
+  --navbar-h: 72px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-main);
+  color: var(--text-dark);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold-light);
+}
+
+@layer components {
+  .card-base {
+    @apply bg-card border border-line rounded-lg shadow-soft transition-shadow duration-200;
+  }
+  .card-base:hover {
+    @apply shadow-card;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-sm text-sm font-semibold cursor-pointer transition-all duration-200 outline-none border-0;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark));
+    @apply text-white;
+  }
+  .btn-primary:hover {
+    @apply -translate-y-px shadow-card;
+  }
+  .btn-secondary {
+    @apply bg-card text-ink border border-line;
+  }
+  .btn-secondary:hover {
+    @apply bg-beige border-gold;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold;
+  }
+  .badge-success {
+    background: rgba(90, 155, 125, 0.1);
+    color: var(--success);
+  }
+  .badge-warning {
+    background: rgba(217, 155, 90, 0.1);
+    color: var(--warning);
+  }
+  .badge-danger {
+    background: rgba(217, 119, 87, 0.1);
+    color: var(--danger);
+  }
+  .badge-gold {
+    background: rgba(212, 180, 131, 0.15);
+    color: var(--accent-gold-dark);
   }
 }

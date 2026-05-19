@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sS http://localhost:3000/api/vendors)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'{len\\(d\\)} vendors'\\)\")",
+      "Bash(curl -sS http://localhost:3000/api/crew)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'{len\\(d\\)} crew'\\)\")",
+      "Bash(curl -sS http://localhost:3000/api/inventory)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'{len\\(d\\)} items'\\)\")",
+      "Bash(curl -sS http://localhost:3000/api/designs)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'{len\\(d\\)} designs'\\)\")",
+      "Bash(curl -sS http://localhost:3000/api/payments)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'{len\\(d\\)} payments'\\)\")",
+      "Bash(curl -sS http://localhost:3000/api/reports)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'totalEvents={d[\\\\\"stats\\\\\"][\\\\\"totalEvents\\\\\"]}, totalRevenue={d[\\\\\"stats\\\\\"][\\\\\"totalRevenue\\\\\"]}, months={len\\(d[\\\\\"monthlyRevenue\\\\\"]\\)}, eventTypes={len\\(d[\\\\\"eventTypes\\\\\"]\\)}'\\)\")",
+      "Bash(curl -sS -X POST http://localhost:3000/api/vendors -H \"Content-Type: application/json\" -d '{\"name\":\"Test Vendor CRUD\",\"category\":\"Catering\",\"contact\":\"Test Person\",\"phone\":\"08123456789\"}')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'created vendor id={d[\\\\\"id\\\\\"]} name={d[\\\\\"name\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'now {len\\(d\\)} vendors'\\)\")",
+      "Bash(curl -sS -X POST http://localhost:3000/api/tasks -H \"Content-Type: application/json\" -d '{\"title\":\"Test task CRUD\",\"category\":\"Wedding\",\"priority\":\"high\",\"clientId\":1}')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'created task id={d[\\\\\"id\\\\\"]} title={d[\\\\\"title\\\\\"]} status={d[\\\\\"status\\\\\"]} client={d[\\\\\"client\\\\\"][\\\\\"names\\\\\"] if d[\\\\\"client\\\\\"] else None}'\\)\")",
+      "Bash(curl -sS -X POST http://localhost:3000/api/clients -H \"Content-Type: application/json\" -d '{\"names\":\"Test Couple\",\"eventType\":\"Wedding\",\"eventDate\":\"2026-08-15\",\"venue\":\"Test Venue\",\"package\":\"Premium\",\"contractValue\":75000000}')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'created client id={d[\\\\\"id\\\\\"]} names={d[\\\\\"names\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'workbook template={d[\\\\\"template\\\\\"]}, sheets:'\\); [print\\(f'  - {s[\\\\\"name\\\\\"]} \\({len\\(s[\\\\\"columns\\\\\"]\\)} cols, {len\\(s[\\\\\"rows\\\\\"]\\)} rows\\)'\\) for s in d['sheets']]\")",
+      "Bash(curl -sS -X POST http://localhost:3000/api/payments -H \"Content-Type: application/json\" -d '{\"clientId\":9,\"type\":\"dp\",\"amount\":30000000,\"paymentDate\":\"2026-05-16\",\"reference\":\"INV-TEST-001\"}')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'payment id={d[\\\\\"id\\\\\"]} type={d[\\\\\"type\\\\\"]} amount={d[\\\\\"amount\\\\\"]}'\\)\")",
+      "Bash(curl -sS -X DELETE http://localhost:3000/api/vendors/7)",
+      "Bash(python3 -c \"import sys,json;print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(curl -sS -X DELETE http://localhost:3000/api/tasks/12)",
+      "Bash(curl -sS -X DELETE http://localhost:3000/api/clients/9)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'{len\\(d\\)} clients remaining \\(should be 8\\)'\\)\")",
+      "Bash(curl -sS -X POST http://localhost:3001/api/events -H 'Content-Type: application/json' -d '{\"title\":\"Final Meeting\",\"type\":\"meeting\",\"startAt\":\"2026-05-20T10:00:00\",\"endAt\":\"2026-05-20T11:00:00\",\"meetLink\":\"https://meet.google.com/abc-defg-hij\",\"location\":\"Office\",\"clientId\":1}')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'task {d[\\\\\"id\\\\\"]} status now={d[\\\\\"status\\\\\"]}'\\)\")",
+      "Bash(curl -sS -i http://localhost:3001/api/events)",
+      "Bash(curl -sS http://localhost:3001/api/events)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(f'vendor {d[\\\\\"id\\\\\"]} rating={d[\\\\\"rating\\\\\"]} notes={d[\\\\\"notes\\\\\"]}'\\)\")",
+      "Bash(curl -sS -X PATCH http://localhost:3001/api/designs/1 -H 'Content-Type: application/json' -d '{\"status\":\"approved\"}')",
+      "Bash(find /Applications/Dev/WebsiteEclipse ~/Downloads ~/Desktop -maxdepth 3 -name \"client_secret*.json\" 2>/dev/null | head -5)",
+      "Read(//Users/macbook/Downloads/**)",
+      "Bash(rm /Applications/Dev/WebsiteEclipse/client_secret_*.json 2>&1 && ls /Applications/Dev/WebsiteEclipse/client_secret_*.json 2>&1 | head -3)",
+      "Bash(rm -f ~/Downloads/client_secret_*.json 2>&1 && echo \"Downloads cleaned\")",
+      "Bash(xargs -r kill -9)",
+      "Bash(curl -sS http://localhost:3000/api/auth/google/status)",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(d\\)\")",
+      "Bash(curl -sS -I -o /dev/null -w \"status=%{http_code}\\\\nlocation=%{redirect_url}\\\\n\" http://localhost:3000/api/auth/google/start)"
+    ],
+    "additionalDirectories": [
+      "/Applications/Dev/WebsiteEclipse",
+      "/Users/macbook/Downloads"
+    ]
+  }
+}
