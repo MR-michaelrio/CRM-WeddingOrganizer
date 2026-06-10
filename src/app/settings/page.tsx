@@ -23,6 +23,9 @@ type SettingDTO = {
   signatoryName: string;
   signatureUrl: string | null;
   thankYouMessage: string;
+  contractTerms: string | null;
+  contractCancellation: string | null;
+  contractPaymentTerms: string | null;
   emailNotifications: boolean;
   autoBackup: boolean;
   smsReminders: boolean;
@@ -90,6 +93,9 @@ export default function SettingsPage() {
           signatoryName: form.signatoryName,
           signatureUrl: form.signatureUrl,
           thankYouMessage: form.thankYouMessage,
+          contractTerms: form.contractTerms,
+          contractCancellation: form.contractCancellation,
+          contractPaymentTerms: form.contractPaymentTerms,
           emailNotifications: form.emailNotifications,
           autoBackup: form.autoBackup,
           smsReminders: form.smsReminders,
@@ -211,6 +217,60 @@ export default function SettingsPage() {
               value={form.thankYouMessage}
               onChange={(e) => updateField("thankYouMessage", e.target.value)}
               placeholder="TERIMAKASIH ATAS KEPERCAYAAN ANDA"
+            />
+          </Field>
+        </div>
+      </div>
+
+      <div className="card-base p-6">
+        <h3 className="mb-1 text-lg font-semibold text-ink">Kontrak Kerja Sama</h3>
+        <p className="mb-5 text-[13px] text-ink-light">
+          Teks default untuk dokumen kontrak. Pisahkan paragraf dengan baris kosong, atau gunakan
+          baris yang diawali "- " untuk bullet list.
+        </p>
+        <div className="flex flex-col gap-4">
+          <Field
+            label="Hak & Kewajiban / Ketentuan Umum"
+            hint="Klausul utama kontrak. Bisa multi-paragraf."
+          >
+            <Textarea
+              value={form.contractTerms ?? ""}
+              onChange={(e) => updateField("contractTerms", e.target.value)}
+              placeholder={
+                "PIHAK PERTAMA (Vendor) berkewajiban menyediakan jasa sesuai paket yang disepakati.\n" +
+                "PIHAK KEDUA (Client) berkewajiban melakukan pembayaran sesuai timeline yang tertera.\n" +
+                "..."
+              }
+              rows={8}
+            />
+          </Field>
+          <Field
+            label="Timeline Pembayaran"
+            hint="Penjelasan tahapan pembayaran (DP, pelunasan, dll.)."
+          >
+            <Textarea
+              value={form.contractPaymentTerms ?? ""}
+              onChange={(e) => updateField("contractPaymentTerms", e.target.value)}
+              placeholder={
+                "- DP minimal 30% dibayarkan pada saat kontrak ditandatangani.\n" +
+                "- Pelunasan paling lambat H-7 sebelum tanggal acara.\n" +
+                "- Pembayaran via transfer ke rekening yang tertera."
+              }
+              rows={5}
+            />
+          </Field>
+          <Field
+            label="Pembatalan / Perubahan Jadwal"
+            hint="Klausul cancellation & reschedule."
+          >
+            <Textarea
+              value={form.contractCancellation ?? ""}
+              onChange={(e) => updateField("contractCancellation", e.target.value)}
+              placeholder={
+                "- Pembatalan dari PIHAK KEDUA: DP tidak dapat dikembalikan.\n" +
+                "- Perubahan jadwal: hanya dapat dilakukan 1 (satu) kali dengan konfirmasi minimal H-30."
+              }
+              rows={5}
             />
           </Field>
         </div>

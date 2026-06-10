@@ -15,6 +15,7 @@ type UpdateClientBody = Partial<{
   progress: number;
   notes: string | null;
   galleryUrl: string | null;
+  workbookPin: string | null;
   picId: number | null;
 }>;
 
@@ -73,6 +74,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const id = Number(params.id);
     if (Number.isNaN(id)) return badRequest("Invalid id");
     const body = await parseJson<UpdateClientBody>(req);
+    if (body.workbookPin !== undefined && body.workbookPin !== null) {
+      const pin = String(body.workbookPin).trim();
+      if (!/^\d{6}$/.test(pin)) {
+        return badRequest("PIN harus tepat 6 digit angka");
+      }
+      body.workbookPin = pin;
+    }
     const client = await prisma.client.update({
       where: { id },
       data: {

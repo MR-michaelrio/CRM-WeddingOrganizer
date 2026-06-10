@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Phone, Mail, Star } from "lucide-react";
+import { Phone, Mail, Star, Calendar, MapPin, Clock } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { RowActions } from "@/components/ui/row-actions";
@@ -12,6 +12,7 @@ import { ViewCrewDialog } from "@/components/forms/view-crew-dialog";
 import { useFetch } from "@/lib/use-fetch";
 import type { CrewDTO } from "@/lib/types";
 import { initials } from "@/lib/utils";
+import { formatDateID } from "@/lib/format";
 
 export default function CrewPage() {
   const { data, loading, error, refresh } = useFetch<CrewDTO[]>("/api/crew");
@@ -104,6 +105,54 @@ export default function CrewPage() {
                 </span>
               </div>
             </button>
+
+            {member.assignments && member.assignments.length > 0 && (
+              <div className="mt-4 border-t border-line pt-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-light">
+                    Assigned Events
+                  </div>
+                  <span className="rounded-full bg-gold-light px-2 py-0.5 text-[10px] font-bold text-gold-dark">
+                    {member.assignments.length}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {member.assignments.map((a) => (
+                    <li
+                      key={a.id}
+                      className="rounded-sm border border-line bg-cream/40 px-3 py-2"
+                    >
+                      <div className="text-sm font-semibold text-ink">
+                        {a.client.names}
+                      </div>
+                      <div className="text-[12px] text-ink-light">
+                        {a.client.eventType}
+                        {a.role && ` · ${a.role}`}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-medium">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDateID(a.client.eventDate)}
+                        </span>
+                        {(a.startTime || a.endTime) && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {a.startTime ?? "—"}
+                            {a.endTime ? `–${a.endTime}` : ""}
+                          </span>
+                        )}
+                        {a.client.venue && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {a.client.venue}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ))}
       </div>

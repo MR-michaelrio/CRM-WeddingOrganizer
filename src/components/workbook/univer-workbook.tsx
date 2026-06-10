@@ -10,6 +10,9 @@ type UniverWorkbookProps = {
   title: string;
   onSaveStatusChange?: (status: SaveStatus) => void;
   onReady?: (handle: UniverWorkbookHandle) => void;
+  // Mode read-only: sembunyikan toolbar/footer/formula bar untuk shared view.
+  // Rumus tetap dikomputasi oleh engine Univer (yang relevan untuk display).
+  readonly?: boolean;
 };
 
 export type SaveStatus =
@@ -113,6 +116,7 @@ export function UniverWorkbook({
   title,
   onSaveStatusChange,
   onReady,
+  readonly,
 }: UniverWorkbookProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const univerRef = useRef<{ univer: { dispose: () => void } } | null>(null);
@@ -260,15 +264,22 @@ export function UniverWorkbook({
         presets: [
           sheetsCore.UniverSheetsCorePreset({
             container: containerRef.current,
-            header: true,
-            toolbar: true,
-            footer: {
-              sheetBar: true,
-              statisticBar: true,
-              menus: true,
-              zoomSlider: true,
-            },
-            formulaBar: true,
+            header: !readonly,
+            toolbar: !readonly,
+            footer: readonly
+              ? {
+                  sheetBar: true,
+                  statisticBar: false,
+                  menus: false,
+                  zoomSlider: false,
+                }
+              : {
+                  sheetBar: true,
+                  statisticBar: true,
+                  menus: true,
+                  zoomSlider: true,
+                },
+            formulaBar: !readonly,
           }),
         ],
       });

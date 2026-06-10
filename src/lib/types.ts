@@ -65,6 +65,24 @@ export type VendorDTO = {
   notes: string | null;
 };
 
+export type CrewAssignmentDTO = {
+  id: number;
+  crewId: number;
+  clientId: number;
+  role: string | null;
+  fee: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  attendance: string;
+  client: {
+    id: number;
+    names: string;
+    eventType: string;
+    eventDate: string;
+    venue: string | null;
+  };
+};
+
 export type CrewDTO = {
   id: number;
   name: string;
@@ -75,6 +93,7 @@ export type CrewDTO = {
   defaultFee: string | null;
   rating: number;
   projects: number;
+  assignments?: CrewAssignmentDTO[];
 };
 
 export type PaymentDTO = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Printer, Search } from "lucide-react";
+import { Ban, Plus, Printer, Receipt, Search } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageLoader } from "@/components/ui/page-loader";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import {
 import { apiFetch, useFetch } from "@/lib/use-fetch";
 import { formatDateID, formatIDR } from "@/lib/format";
 
-type InvoiceItem = { description: string; qty: number; price: number };
+type InvoiceItem = { description: string; qty: number; price: number; details?: string };
 
 type InvoiceDTO = {
   id: number;
@@ -39,6 +39,37 @@ const STATUS_TONE: Record<string, "neutral" | "warning" | "success" | "danger" |
   overdue: "danger",
   void: "neutral",
 };
+
+// Display label & effective status, dengan auto-overdue ketika dueDate sudah
+// lewat hari ini & invoice belum paid/void.
+function displayInvoiceStatus(
+  inv: { status: string; dueDate: string | null; type: string; amount: string },
+  totalForPct: number
+): { label: string; tone: "neutral" | "warning" | "success" | "danger" | "gold" } {
+  const auto =
+    inv.status !== "paid" &&
+    inv.status !== "void" &&
+    inv.dueDate &&
+    new Date(inv.dueDate) < new Date(new Date().toDateString())
+      ? "overdue"
+      : inv.status;
+
+  if (auto === "paid") {
+    if (inv.type === "dp") {
+      const amt = Number(inv.amount);
+      const pct =
+        totalForPct > 0 && amt > 0
+          ? Math.round((amt / totalForPct) * 100)
+          : 0;
+      const suffix = pct > 0 && pct < 100 ? ` ${pct}%` : "";
+      return { label: `LUNAS${suffix}`, tone: "success" };
+    }
+    return { label: "LUNAS", tone: "success" };
+  }
+  if (auto === "overdue") return { label: "OVERDUE", tone: "danger" };
+  if (auto === "void") return { label: "BATAL", tone: "neutral" };
+  return { label: auto, tone: STATUS_TONE[auto] ?? "neutral" };
+}
 
 export default function InvoicesPage() {
   const { data, loading, error, refresh } = useFetch<InvoiceDTO[]>("/api/invoices");
@@ -77,9 +108,32 @@ export default function InvoicesPage() {
 
   const markPaid = async (inv: InvoiceDTO) => {
     try {
+      const res = await apiFetch<{ autoCreatedPelunasanId: number | null }>(
+        `/api/invoices/${inv.id}`,
+        { method: "PATCH", body: { status: "paid" } }
+      );
+      refresh();
+      if (inv.type === "dp" && res?.autoCreatedPelunasanId) {
+        alert(
+          "DP berhasil ditandai lunas.\nInvoice Pelunasan otomatis dibuat sebagai draft — silakan review & kirim ke client."
+        );
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed");
+    }
+  };
+
+  const markBatal = async (inv: InvoiceDTO) => {
+    if (
+      !window.confirm(
+        `Batalkan invoice ${inv.number}? Status akan jadi "Batal" (void).`
+      )
+    )
+      return;
+    try {
       await apiFetch(`/api/invoices/${inv.id}`, {
         method: "PATCH",
-        body: { status: "paid" },
+        body: { status: "void" },
       });
       refresh();
     } catch (err) {
@@ -226,9 +280,25 @@ export default function InvoicesPage() {
                     {inv.dueDate ? formatDateID(inv.dueDate) : "—"}
                   </td>
                   <td className="px-6 py-4">
-                    <Badge tone={STATUS_TONE[inv.status] ?? "neutral"}>
-                      {inv.status}
-                    </Badge>
+                    {(() => {
+                      const subtotal = (inv.items ?? []).reduce(
+                        (s, it) =>
+                          s + (Number(it.qty) || 0) * (Number(it.price) || 0),
+                        0
+                      );
+                      const totalForPct =
+                        subtotal > 0 ? subtotal : Number(inv.amount);
+                      const d = displayInvoiceStatus(
+                        {
+                          status: inv.status,
+                          dueDate: inv.dueDate,
+                          type: inv.type,
+                          amount: inv.amount,
+                        },
+                        totalForPct
+                      );
+                      return <Badge tone={d.tone}>{d.label}</Badge>;
+                    })()}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
@@ -237,17 +307,30 @@ export default function InvoicesPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-secondary !py-1.5 text-xs"
-                        title="Print invoice"
+                        title={`Print Invoice ${inv.type === "dp" ? "DP" : "Pelunasan"}`}
                       >
                         <Printer className="h-3.5 w-3.5" />
-                        Print
+                        Invoice {inv.type === "dp" ? "DP" : "Pelunasan"}
                       </a>
-                      {inv.status !== "paid" && (
+                      {inv.status === "paid" && (
+                        <a
+                          href={`/invoices/${inv.id}/receipt`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary !py-1.5 text-xs"
+                          title={`Kwitansi ${inv.type === "dp" ? "Pembayaran DP" : "Pelunasan"}`}
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          Kwitansi {inv.type === "dp" ? "DP" : "Pelunasan"}
+                        </a>
+                      )}
+                      {inv.status !== "paid" && inv.status !== "void" && (
                         <button
                           onClick={() => markPaid(inv)}
                           className="btn btn-secondary !py-1.5 text-xs"
+                          title={`Tandai ${inv.type === "dp" ? "DP" : "Pelunasan"} sudah dibayar`}
                         >
-                          Mark Paid
+                          Tandai Lunas {inv.type === "dp" ? "DP" : "Pelunasan"}
                         </button>
                       )}
                       <RowActions
@@ -263,6 +346,17 @@ export default function InvoicesPage() {
                             items: inv.items,
                             eventLabel: inv.eventLabel,
                           })
+                        }
+                        extras={
+                          inv.status !== "void" && inv.status !== "paid"
+                            ? [
+                                {
+                                  label: "Mark Batal",
+                                  icon: Ban,
+                                  onClick: () => markBatal(inv),
+                                },
+                              ]
+                            : undefined
                         }
                         onDelete={() => setDeleting(inv)}
                       />
