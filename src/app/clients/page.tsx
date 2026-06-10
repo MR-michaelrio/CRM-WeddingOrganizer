@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Download, Search } from "lucide-react";
+import { MapPin, Download, FileText, Search, Users } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -10,6 +10,7 @@ import { RowActions } from "@/components/ui/row-actions";
 import { DeleteEndpointDialog } from "@/components/ui/confirm-dialog";
 import { DialogTrigger } from "@/components/forms/dialog-trigger";
 import { EditClientDialog } from "@/components/forms/edit-client-dialog";
+import { AssignCrewDialog } from "@/components/forms/assign-crew-dialog";
 import { useFetch } from "@/lib/use-fetch";
 import { formatDateID, formatIDR } from "@/lib/format";
 import type { ClientDTO } from "@/lib/types";
@@ -36,6 +37,7 @@ export default function ClientsPage() {
   const [filterPackage, setFilterPackage] = useState<string>("all");
   const [edit, setEdit] = useState<ClientDTO | null>(null);
   const [del, setDel] = useState<ClientDTO | null>(null);
+  const [assignCrew, setAssignCrew] = useState<ClientDTO | null>(null);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -201,6 +203,19 @@ export default function ClientsPage() {
                     <RowActions
                       onView={() => router.push(`/clients/${client.id}`)}
                       onEdit={() => setEdit(client)}
+                      extras={[
+                        {
+                          label: "Assign Crew",
+                          icon: Users,
+                          onClick: () => setAssignCrew(client),
+                        },
+                        {
+                          label: "Print Kontrak",
+                          icon: FileText,
+                          onClick: () =>
+                            window.open(`/clients/${client.id}/contract`, "_blank"),
+                        },
+                      ]}
                       onDelete={() => setDel(client)}
                     />
                   </td>
@@ -227,6 +242,13 @@ export default function ClientsPage() {
           title={`Delete "${del.names}"?`}
           description="Workbook, sheets, tasks, payments, dan designs terkait akan ikut terhapus."
           onSuccess={refresh}
+        />
+      )}
+      {assignCrew && (
+        <AssignCrewDialog
+          open
+          onClose={() => setAssignCrew(null)}
+          client={assignCrew}
         />
       )}
     </div>

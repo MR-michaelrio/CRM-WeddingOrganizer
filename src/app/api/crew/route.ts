@@ -12,7 +12,25 @@ type CreateCrewBody = {
 
 export async function GET() {
   try {
-    const crew = await prisma.crew.findMany({ orderBy: { name: "asc" } });
+    const crew = await prisma.crew.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        assignments: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                names: true,
+                eventType: true,
+                eventDate: true,
+                venue: true,
+              },
+            },
+          },
+          orderBy: { client: { eventDate: "asc" } },
+        },
+      },
+    });
     return ok(crew);
   } catch (err) {
     return serverError(err);

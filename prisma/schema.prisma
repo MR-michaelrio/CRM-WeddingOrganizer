@@ -12,13 +12,15 @@ datasource db {
 // ---- Reference entities ----
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  role      String   @default("admin") // super_admin, admin, finance, crew, viewer
-  avatar    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  username     String?  @unique
+  passwordHash String?  // null kalau belum di-setup (legacy users)
+  role         String   @default("admin") // super_admin, admin, finance, crew, viewer
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   managedClients Client[]
 }
@@ -40,6 +42,7 @@ model Client {
   progress    Int      @default(0)
   notes       String?  @db.Text
   galleryUrl  String?  @db.Text
+  workbookPin String?  @db.VarChar(6) // 6 digit, untuk akses share workbook
   picId       Int?
   pic         User?    @relation(fields: [picId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
@@ -49,6 +52,7 @@ model Client {
   tasks     Task[]
   payments  Payment[]
   invoices  Invoice[]
+  expenses  Expense[]
   crewAssignments CrewAssignment[]
   designs   Design[]
   events    CalendarEvent[]
@@ -177,6 +181,11 @@ model Setting {
   signatoryName   String @default("Michael Rio Agustino Tan")
   signatureUrl    String? @default("/ttd.png") @db.Text
   thankYouMessage String @default("TERIMAKASIH ATAS KEPERCAYAAN ANDA")
+  // Contract template (Kontrak Kerja Sama) — editable di Settings.
+  // Multi-paragraph; pakai newline antar paragraf.
+  contractTerms        String? @db.Text
+  contractCancellation String? @db.Text
+  contractPaymentTerms String? @db.Text
   // Preferences (booleans stored as Int 0/1 for portability)
   emailNotifications Boolean @default(true)
   autoBackup         Boolean @default(true)
@@ -267,6 +276,34 @@ model Payment {
   @@index([clientId])
   @@index([type])
   @@index([paymentDate])
+}
+
+// ---- Expenses ----
+// Pencatatan pengeluaran (operasional + per client). Terpisah dari Payment
+// yang sekarang digunakan untuk pembayaran masuk dari client.
+model Expense {
+  id             Int       @id @default(autoincrement())
+  date           DateTime  // tanggal pengeluaran
+  category       String    // Vendor, Photographer, Dekorasi, Transport, Operasional, Perlengkapan, Konsumsi, Lainnya
+  amount         Decimal   @db.Decimal(15, 2)
+  method         String    @default("transfer") // transfer, cash, card, qris
+  vendor         String    // vendor / penerima pembayaran
+  clientId       Int?
+  client         Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  description    String?   @db.Text
+  attachmentUrl  String?   @db.Text // path ke /uploads/expenses/...
+  attachmentName String?   // nama file asli untuk display
+  status         String    @default("draft") // draft, paid, void
+  voidReason     String?   @db.Text
+  voidedBy       String?
+  voidedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([category])
+  @@index([status])
+  @@index([date])
 }
 
 // ---- Inventory ----
