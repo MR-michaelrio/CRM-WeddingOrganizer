@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-type InvoiceItem = { description: string; qty: number; price: number };
+type InvoiceItem = { description: string; qty: number; price: number; details?: string };
 
 function escapeHtml(s: string): string {
   return s
@@ -51,13 +51,68 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     (s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0),
     0
   );
-  const total = subtotal > 0 ? subtotal : Number(invoice.amount);
+
+  // Untuk perhitungan persen DP, total ideal = subtotal items kalau ada,
+  // kalau tidak fallback ke (dueAmount + sibling amount).
   const dueAmount = Number(invoice.amount);
-  const pct = total > 0 ? Math.round((dueAmount / total) * 100) : 0;
+
+  // Cari invoice pasangan (DP atau Pelunasan) untuk client yang sama.
+  const sibling = await prisma.invoice.findFirst({
+    where: {
+      clientId: invoice.clientId,
+      type: invoice.type === "dp" ? "pelunasan" : "dp",
+    },
+    orderBy: [{ paidAt: "desc" }, { issuedDate: "desc" }],
+    select: { number: true, amount: true, paidAt: true, status: true, issuedDate: true },
+  });
+
+  // siblingDp = invoice DP-nya (kalau yang sedang dirender Pelunasan).
+  const siblingDp = invoice.type === "pelunasan" ? sibling : null;
+  const dpPaid = siblingDp ? Number(siblingDp.amount) : 0;
+  const dpIsPaid = siblingDp?.status === "paid";
+
+  const totalCandidate =
+    subtotal > 0
+      ? subtotal
+      : invoice.type === "dp"
+        ? dueAmount + (sibling ? Number(sibling.amount) : 0)
+        : dueAmount + dpPaid;
+  const total = totalCandidate;
+
+  // Persen DP atas total paket.
+  const dpAmountForPct = invoice.type === "dp" ? dueAmount : dpPaid;
+  const pct =
+    total > 0 && dpAmountForPct > 0
+      ? Math.round((dpAmountForPct / total) * 100)
+      : 0;
+  const pctSuffix = pct > 0 && pct < 100 ? ` ${pct}%` : "";
+
+  const invoicePaid = invoice.status === "paid";
+  // dueLabel = label di kolom totals untuk baris "DP / PELUNASAN" pada
+  // invoice yang sedang dirender.
   const dueLabel =
     invoice.type === "dp"
-      ? `DP${pct > 0 && pct < 100 ? ` ${pct}%` : ""}`
-      : "PELUNASAN";
+      ? invoicePaid
+        ? `LUNAS${pctSuffix}`
+        : `DP${pctSuffix}`
+      : invoicePaid
+        ? "LUNAS"
+        : "PELUNASAN";
+
+  // Status badge di header.
+  const headerStatus =
+    invoice.type === "dp"
+      ? invoicePaid
+        ? `LUNAS${pctSuffix}`
+        : `DP${pctSuffix}`
+      : invoicePaid
+        ? "LUNAS"
+        : "PELUNASAN";
+  // Untuk DP: sisa = total - DP. Untuk Pelunasan: sisa = nominal tagihan ini
+  // (yang harus dilunasi). Total mengasumsikan subtotal items merepresentasi
+  // total paket.
+  const sisaPembayaran =
+    invoice.type === "dp" ? Math.max(0, total - dueAmount) : dueAmount;
 
   const brandName = setting?.brandName || "eclipse.sangjit";
   const brandTagline = setting?.brandTagline || "JA BO DE TA BEK";
@@ -73,19 +128,40 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     items.length === 0
       ? `<tr><td colspan="4" class="empty">Belum ada line items. Tambah di form Edit Invoice.</td></tr>`
       : items
-          .map(
-            (it) => `
+          .map((it) => {
+            const details = String(it.details || "")
+              .split(/\r?\n/)
+              .map((l) => l.trim())
+              .filter((l) => l.length > 0);
+            const qtyNum = Number(it.qty) || 0;
+            const jmlCell =
+              details.length > 0
+                ? `<ul class="rincian">${details
+                    .map((d) => `<li>${escapeHtml(d)}</li>`)
+                    .join("")}</ul>`
+                : qtyNum > 1
+                  ? String(qtyNum)
+                  : "";
+            return `
             <tr>
               <td class="desc">${escapeHtml(it.description || "")}</td>
               <td class="num">${formatIDR(Number(it.price) || 0)}</td>
-              <td class="num">${Number(it.qty) > 1 ? Number(it.qty) : ""}</td>
-              <td class="num">${formatIDR((Number(it.qty) || 0) * (Number(it.price) || 0))}</td>
-            </tr>`
-          )
+              <td class="jml">${jmlCell}</td>
+              <td class="num">${formatIDR(qtyNum * (Number(it.price) || 0))}</td>
+            </tr>`;
+          })
           .join("");
 
-  // Fill remaining table rows so the grey block looks like the design
-  const minRows = 5;
+  // Fill remaining table rows so the grey block looks like the design.
+  // Skip filler entirely if any item already has rincian — the bullet list
+  // makes the row tall enough that extra padding rows just waste space.
+  const hasAnyDetails = items.some(
+    (it) =>
+      String(it.details || "")
+        .split(/\r?\n/)
+        .filter((l) => l.trim().length > 0).length > 0
+  );
+  const minRows = hasAnyDetails ? 0 : 2;
   const padding =
     items.length < minRows
       ? Array.from({ length: minRows - items.length })
@@ -113,30 +189,53 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .page {
       width: 210mm;
       min-height: 297mm;
-      padding: 22mm 18mm;
+      padding: 14mm 16mm;
       margin: 24px auto;
       background: white;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       position: relative;
+      display: flex;
+      flex-direction: column;
     }
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-bottom: 18px;
+      padding-bottom: 12px;
       border-bottom: 1px solid #111;
     }
     .header h1 {
       font-family: 'Helvetica World', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      font-size: 68px;
+      font-size: 54px;
       letter-spacing: 1px;
       font-weight: 500;
       margin: 0;
       color: #111;
       line-height: 1;
     }
+    .title-block { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .invoice-kind {
+      font-size: 10px;
+      letter-spacing: 2px;
+      font-weight: 700;
+      color: #777;
+      padding: 4px 8px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .status-pill {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      padding: 6px 12px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .status-pill.pending { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    .status-pill.paid { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .brand { text-align: right; }
-    .brand .logo-img { max-height: 96px; max-width: 320px; object-fit: contain; display: inline-block; }
+    .brand .logo-img { max-height: 72px; max-width: 260px; object-fit: contain; display: inline-block; }
     .brand .brand-name {
       font-family: 'Italiana', 'Cormorant Garamond', Georgia, serif;
       font-size: 30px;
@@ -164,8 +263,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .meta {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-top: 28px;
+      gap: 18px;
+      margin-top: 14px;
     }
     .meta .label {
       font-weight: 700;
@@ -178,34 +277,49 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       color: #333;
     }
     .meta-right { text-align: right; }
-    .meta-right .block + .block { margin-top: 12px; }
+    .meta-right .block + .block { margin-top: 8px; }
     table.items {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 28px;
+      margin-top: 14px;
     }
     table.items thead th {
       font-size: 11px;
       letter-spacing: 1px;
       text-transform: uppercase;
       font-weight: 700;
-      padding: 12px 14px;
+      padding: 8px 12px;
       text-align: left;
       color: #111;
     }
     table.items thead th.num { text-align: right; }
+    table.items thead th.jml-head { text-align: center; }
     table.items tbody td {
-      padding: 16px 14px;
+      padding: 8px 12px;
       font-size: 13px;
       background: #ebebeb;
       vertical-align: top;
     }
+    table.items tbody tr:last-child td { padding-bottom: 8px; }
     table.items tbody td.desc {
       font-weight: 600;
       letter-spacing: 0.3px;
       text-transform: uppercase;
     }
     table.items tbody td.num { text-align: right; }
+    table.items tbody td.jml { text-align: center; font-size: 13px; }
+    table.items tbody td.jml ul.rincian {
+      display: inline-block;
+      margin: 0;
+      padding-left: 14px;
+      text-align: left;
+      list-style: disc;
+      text-transform: none;
+      font-weight: 400;
+      letter-spacing: 0;
+      line-height: 1.4;
+    }
+    table.items tbody td.jml ul.rincian li { padding: 1px 0; }
     table.items tbody td.empty {
       text-align: center;
       font-style: italic;
@@ -216,8 +330,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .bottom {
       display: grid;
       grid-template-columns: 1.2fr 1fr;
-      gap: 32px;
-      margin-top: 22px;
+      gap: 24px;
+      margin-top: 12px;
     }
     .pembayaran .head {
       font-size: 15px;
@@ -239,8 +353,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .totals .label.dim { font-weight: 500; color: #444; }
     .totals .amount { font-size: 14px; font-weight: 700; min-width: 140px; }
     .totals .amount.dim { font-weight: 500; color: #444; }
+    .totals .row.sisa { padding-top: 8px; border-top: 1px solid #ccc; margin-top: 4px; }
+    .totals .row.sisa .label, .totals .row.sisa .amount { color: #B43A38; font-size: 15px; }
+    .totals .row.duedate .label, .totals .row.duedate .amount { font-size: 12px; }
+    .totals .row.lunas .label, .totals .row.lunas .amount { color: #155724; font-size: 15px; }
+    .totals .row.dp-paid .label, .totals .row.dp-paid .amount { color: #B43A38; font-weight: 700; }
     .event-note {
-      margin-top: 16px;
+      margin-top: 12px;
       font-size: 12px;
       padding-left: 16px;
       position: relative;
@@ -253,8 +372,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .footer {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      margin-top: 96px;
+      gap: 24px;
+      margin-top: auto;
+      padding-top: 36px;
     }
     .footer .thanks {
       font-weight: 700;
@@ -267,7 +387,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       text-align: center;
     }
     .footer .sign img {
-      max-height: 90px;
+      max-height: 72px;
       max-width: 180px;
       object-fit: contain;
     }
@@ -297,8 +417,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
     @media print {
       html, body { background: white; }
-      .page { box-shadow: none; margin: 0; }
+      .page { box-shadow: none; margin: 0; min-height: 297mm; }
       .actions { display: none; }
+      /* Hindari pecah di tengah baris/blok, tapi biarkan konten lanjut ke
+         halaman 2 secara natural kalau memang tidak muat 1 halaman. */
+      table.items tr, .bottom, .footer { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -310,7 +433,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   <div class="page">
     <div class="header">
-      <h1>INVOICE</h1>
+      <div class="title-block">
+        <h1>INVOICE</h1>
+        <div class="status-pill ${invoicePaid ? "paid" : "pending"}">${escapeHtml(headerStatus)}</div>
+      </div>
       <div class="brand">
         ${
           brandLogoUrl
@@ -342,7 +468,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         <tr>
           <th>KETERANGAN</th>
           <th class="num">HARGA</th>
-          <th class="num">JML</th>
+          <th class="jml-head">JML</th>
           <th class="num">TOTAL</th>
         </tr>
       </thead>
@@ -372,10 +498,34 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           <span class="label">TOTAL</span>
           <span class="amount">${formatIDR(total)}</span>
         </div>
-        <div class="row">
-          <span class="label dim">${escapeHtml(dueLabel)}</span>
-          <span class="amount dim">${formatIDR(dueAmount)}</span>
+        ${
+          invoice.type === "pelunasan" && siblingDp
+            ? `<div class="row dp-paid">
+                 <span class="label">DP${pctSuffix} ${dpIsPaid ? "LUNAS" : "TERBAYAR"}</span>
+                 <span class="amount">${formatIDR(dpPaid)}</span>
+               </div>`
+            : ""
+        }
+        <div class="row${invoicePaid ? " lunas" : ""}">
+          <span class="label${invoicePaid ? "" : " dim"}">${escapeHtml(dueLabel)}</span>
+          <span class="amount${invoicePaid ? "" : " dim"}">${formatIDR(dueAmount)}</span>
         </div>
+        ${
+          invoice.type === "dp" && !invoicePaid
+            ? `<div class="row sisa">
+                 <span class="label">SISA PEMBAYARAN</span>
+                 <span class="amount">${formatIDR(sisaPembayaran)}</span>
+               </div>`
+            : ""
+        }
+        ${
+          invoice.dueDate
+            ? `<div class="row duedate">
+                 <span class="label dim">${invoice.type === "dp" ? "DUE DATE PELUNASAN" : "DUE DATE"}</span>
+                 <span class="amount dim">${escapeHtml(formatLongDate(new Date(invoice.dueDate)))}</span>
+               </div>`
+            : ""
+        }
       </div>
     </div>
 

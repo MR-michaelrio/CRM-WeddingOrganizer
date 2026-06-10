@@ -27,6 +27,7 @@ export type InvoiceItem = {
   description: string;
   qty: number;
   price: number;
+  details?: string;
 };
 
 export type InvoiceForEdit = {
@@ -45,7 +46,7 @@ function parseCurrency(s: string): number {
   return Number(s.replace(/\D/g, "")) || 0;
 }
 
-const EMPTY_ITEM: InvoiceItem = { description: "", qty: 1, price: 0 };
+const EMPTY_ITEM: InvoiceItem = { description: "", qty: 1, price: 0, details: "" };
 
 export function NewInvoiceDialog({
   open,
@@ -79,6 +80,7 @@ export function NewInvoiceDialog({
           description: it.description,
           qty: Number(it.qty) || 1,
           price: Number(it.price) || 0,
+          details: it.details ?? "",
         }))
       : [{ ...EMPTY_ITEM }]
   );
@@ -168,6 +170,7 @@ export function NewInvoiceDialog({
       description: pkg.name.toUpperCase(),
       qty: 1,
       price: Number(pkg.price) || 0,
+      details: pkg.description ?? "",
     };
     setItemsTouched(true);
     setItems((arr) => {
@@ -181,6 +184,18 @@ export function NewInvoiceDialog({
     });
   };
 
+  // Auto-prefill due date pelunasan = client.eventDate - 7 hari. Hanya
+  // dilakukan saat user belum mengisi dueDate sendiri & ini bukan edit dari
+  // invoice yang sudah punya dueDate.
+  useEffect(() => {
+    if (dueDate) return;
+    if (!selectedClient?.eventDate) return;
+    const ev = new Date(selectedClient.eventDate);
+    if (Number.isNaN(ev.getTime())) return;
+    ev.setDate(ev.getDate() - 7);
+    setDueDate(ev.toISOString().slice(0, 10));
+  }, [selectedClient?.eventDate, dueDate]);
+
   // Auto-prefill items from the selected client's package when user hasn't
   // manually edited items yet.
   useEffect(() => {
@@ -193,6 +208,7 @@ export function NewInvoiceDialog({
         description: pkg.name.toUpperCase(),
         qty: 1,
         price: Number(pkg.price) || 0,
+        details: pkg.description ?? "",
       },
     ]);
     // We intentionally don't set itemsTouched here — if user picks a different
@@ -218,6 +234,7 @@ export function NewInvoiceDialog({
         description: it.description.trim(),
         qty: Number(it.qty) || 0,
         price: Number(it.price) || 0,
+        details: (it.details ?? "").trim(),
       }))
       .filter((it) => it.description || it.qty > 0 || it.price > 0);
 
@@ -359,6 +376,7 @@ export function NewInvoiceDialog({
               <thead className="bg-cream text-[11px] uppercase tracking-wider text-ink-light">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold">Description</th>
+                  <th className="px-3 py-2 text-left font-semibold">Deskripsi</th>
                   <th className="w-20 px-3 py-2 text-right font-semibold">Qty</th>
                   <th className="w-40 px-3 py-2 text-right font-semibold">Harga</th>
                   <th className="w-40 px-3 py-2 text-right font-semibold">Total</th>
@@ -370,7 +388,7 @@ export function NewInvoiceDialog({
                   const rowTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
                   return (
                     <tr key={idx} className="border-t border-line">
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-1.5 align-top">
                         <Input
                           value={it.description}
                           onChange={(e) =>
@@ -379,7 +397,18 @@ export function NewInvoiceDialog({
                           placeholder="e.g. PAKET BAKI"
                         />
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-1.5 align-top">
+                        <Textarea
+                          value={it.details ?? ""}
+                          onChange={(e) =>
+                            updateItem(idx, { details: e.target.value })
+                          }
+                          placeholder={"Rincian paket (opsional)\n1 baris per rincian"}
+                          rows={3}
+                          className="text-sm"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 align-top">
                         <Input
                           type="number"
                           min={0}
@@ -390,7 +419,7 @@ export function NewInvoiceDialog({
                           className="text-right"
                         />
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-1.5 align-top">
                         <Input
                           type="text"
                           inputMode="numeric"
@@ -402,10 +431,10 @@ export function NewInvoiceDialog({
                           className="text-right"
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-right text-ink">
+                      <td className="px-3 py-1.5 text-right align-top text-ink">
                         {formatIDR(rowTotal)}
                       </td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="px-2 py-1.5 text-right align-top">
                         <button
                           type="button"
                           onClick={() => removeItem(idx)}
@@ -422,7 +451,7 @@ export function NewInvoiceDialog({
               </tbody>
               <tfoot className="bg-cream">
                 <tr>
-                  <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold uppercase text-ink-light">
+                  <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold uppercase text-ink-light">
                     Subtotal
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-ink">
@@ -470,7 +499,10 @@ export function NewInvoiceDialog({
           />
         </Field>
 
-        <Field label="Due Date">
+        <Field
+          label="Due Date"
+          hint="Default H-7 sebelum tanggal acara. Bisa diubah manual."
+        >
           <Input
             type="date"
             value={dueDate}

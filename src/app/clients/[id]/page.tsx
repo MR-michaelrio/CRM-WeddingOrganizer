@@ -21,6 +21,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDateID, formatIDR } from "@/lib/format";
+import {
+  computeTransactionStatus,
+  transactionStatusLabel,
+  transactionStatusTone,
+} from "@/lib/transaction-status";
+import { WorkbookPinCard } from "@/components/forms/workbook-pin-card";
+import { CrewAssignmentPanel } from "@/components/forms/crew-assignment-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +39,20 @@ function statusTone(s: string) {
   if (s === "active" || s === "in_progress" || s === "sent") return "warning" as const;
   if (s === "overdue") return "danger" as const;
   return "neutral" as const;
+}
+
+function txStatusBadgeTone(
+  s: string
+): "neutral" | "gold" | "warning" | "success" | "danger" {
+  switch (s) {
+    case "success":
+    case "gold":
+    case "warning":
+    case "danger":
+      return s;
+    default:
+      return "neutral";
+  }
 }
 
 function SectionCard({
@@ -87,9 +108,6 @@ export default async function ClientDetailPage({ params }: Params) {
       payments: { orderBy: { paymentDate: "desc" } },
       invoices: { orderBy: { issuedDate: "desc" } },
       designs: { orderBy: { uploadedAt: "desc" } },
-      crewAssignments: {
-        include: { crew: { select: { id: true, name: true, role: true } } },
-      },
       events: { orderBy: { startAt: "asc" } },
     },
   });
@@ -102,6 +120,33 @@ export default async function ClientDetailPage({ params }: Params) {
   const totalInvoiced = client.invoices.reduce((s, i) => s + Number(i.amount), 0);
   const contractValue = client.contractValue ? Number(client.contractValue) : 0;
   const outstanding = Math.max(contractValue - totalPaid, 0);
+
+  // ---- Transaction status (per-client) ----
+  const dpInvoice = client.invoices.find((i) => i.type === "dp");
+  const pelunasanInvoice = client.invoices.find((i) => i.type === "pelunasan");
+  const txStatus = computeTransactionStatus(
+    client.invoices.map((i) => ({
+      type: i.type,
+      status: i.status,
+      amount: Number(i.amount),
+      dueDate: i.dueDate,
+      paidAt: i.paidAt,
+    }))
+  );
+  const txLabel = transactionStatusLabel(txStatus);
+  const txTone = txStatusBadgeTone(transactionStatusTone(txStatus));
+  const showInvoiceDp = txStatus === "draft" || txStatus === "sent";
+  const showInvoicePelunasan =
+    txStatus === "paid_dp" || txStatus === "overdue";
+  const showKwitansiDp =
+    txStatus === "paid_dp" ||
+    txStatus === "overdue" ||
+    txStatus === "paid_lunas";
+  const showKwitansiPelunasan = txStatus === "paid_lunas";
+  const showKontrak =
+    txStatus === "paid_dp" ||
+    txStatus === "paid_lunas" ||
+    txStatus === "overdue";
 
   return (
     <div className="p-8">
@@ -136,6 +181,93 @@ export default async function ClientDetailPage({ params }: Params) {
           </div>
         }
       />
+
+      {/* ----- Status Transaksi & Dokumen ----- */}
+      <div className="mb-6 card-base p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-ink-light">
+              Status Transaksi
+            </div>
+            <div className="mt-1.5 flex items-center gap-3">
+              <Badge tone={txTone}>{txLabel}</Badge>
+              {pelunasanInvoice?.dueDate && (
+                <span className="text-xs text-ink-light">
+                  Pelunasan due {formatDateID(pelunasanInvoice.dueDate)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {showInvoiceDp && dpInvoice && (
+              <a
+                href={`/invoices/${dpInvoice.id}/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary text-sm"
+              >
+                <FileText className="h-4 w-4" /> Invoice DP
+              </a>
+            )}
+            {showInvoiceDp && !dpInvoice && (
+              <span className="text-xs italic text-ink-light">
+                Belum ada invoice DP — buat dari halaman Invoices.
+              </span>
+            )}
+            {showInvoicePelunasan && pelunasanInvoice && (
+              <a
+                href={`/invoices/${pelunasanInvoice.id}/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary text-sm"
+              >
+                <FileText className="h-4 w-4" /> Invoice Pelunasan
+              </a>
+            )}
+            {showKwitansiDp && dpInvoice?.status === "paid" && (
+              <a
+                href={`/invoices/${dpInvoice.id}/receipt`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary text-sm"
+              >
+                <Receipt className="h-4 w-4" /> Kwitansi DP
+              </a>
+            )}
+            {showKwitansiPelunasan && pelunasanInvoice?.status === "paid" && (
+              <a
+                href={`/invoices/${pelunasanInvoice.id}/receipt`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary text-sm"
+              >
+                <Receipt className="h-4 w-4" /> Kwitansi Pelunasan
+              </a>
+            )}
+            {showKontrak && (
+              <a
+                href={`/clients/${client.id}/contract`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary text-sm"
+              >
+                <FileText className="h-4 w-4" /> Kontrak Kerja Sama
+              </a>
+            )}
+          </div>
+        </div>
+        {txStatus === "overdue" && pelunasanInvoice?.dueDate && (
+          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            Pelunasan sudah lewat jatuh tempo (
+            {formatDateID(pelunasanInvoice.dueDate)}). Segera tindak lanjuti.
+          </div>
+        )}
+        {txStatus === "batal" && (
+          <div className="mt-3 rounded border border-line bg-cream/40 px-3 py-2 text-xs text-ink-light">
+            Transaksi dibatalkan. Dokumen tidak dapat dicetak ulang.
+          </div>
+        )}
+      </div>
 
       {/* ----- Top summary ----- */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -258,6 +390,11 @@ export default async function ClientDetailPage({ params }: Params) {
             )}
           </SectionCard>
 
+          <WorkbookPinCard
+            clientId={client.id}
+            initialPin={client.workbookPin}
+          />
+
           <SectionCard
             title="Checklist / Tasks"
             icon={CheckSquare}
@@ -367,7 +504,7 @@ export default async function ClientDetailPage({ params }: Params) {
                     key={inv.id}
                     className="flex items-start justify-between gap-2 rounded-sm border border-line bg-cream/40 px-3 py-2"
                   >
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="font-mono text-xs text-ink-light">{inv.number}</div>
                       <div className="text-sm font-semibold text-ink">
                         {formatIDR(String(inv.amount))}
@@ -375,6 +512,26 @@ export default async function ClientDetailPage({ params }: Params) {
                       <div className="text-xs text-ink-light">
                         {inv.type === "dp" ? "DP" : "Pelunasan"} ·{" "}
                         {inv.dueDate ? `Due ${formatDateID(inv.dueDate)}` : "No due date"}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                        <a
+                          href={`/invoices/${inv.id}/print`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-sm border border-line bg-white px-2 py-0.5 font-semibold text-ink hover:bg-beige"
+                        >
+                          Invoice
+                        </a>
+                        {inv.status === "paid" && (
+                          <a
+                            href={`/invoices/${inv.id}/receipt`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-sm border border-line bg-white px-2 py-0.5 font-semibold text-ink hover:bg-beige"
+                          >
+                            Bukti {inv.type === "dp" ? "DP" : "Pelunasan"}
+                          </a>
+                        )}
                       </div>
                     </div>
                     <Badge tone={statusTone(inv.status)}>{inv.status}</Badge>
@@ -440,36 +597,7 @@ export default async function ClientDetailPage({ params }: Params) {
               </Link>
             }
           >
-            {client.crewAssignments.length ? (
-              <ul className="flex flex-col gap-2">
-                {client.crewAssignments.map((ca) => (
-                  <li
-                    key={ca.id}
-                    className="flex items-start justify-between gap-2 rounded-sm border border-line bg-cream/40 px-3 py-2"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-ink">
-                        {ca.crew.name}
-                      </div>
-                      <div className="text-xs text-ink-light">
-                        {ca.role ?? ca.crew.role}
-                        {ca.startTime && ` · ${ca.startTime}–${ca.endTime ?? ""}`}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {ca.fee && (
-                        <div className="text-sm text-ink">
-                          {formatIDR(String(ca.fee))}
-                        </div>
-                      )}
-                      <Badge tone={statusTone(ca.attendance)}>{ca.attendance}</Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty text="Belum ada crew assigned." />
-            )}
+            <CrewAssignmentPanel clientId={client.id} />
           </SectionCard>
 
           <SectionCard

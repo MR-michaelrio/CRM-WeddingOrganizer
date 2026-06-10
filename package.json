@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3005",
+    "dev": "next dev --turbo -p 3005",
     "build": "next build",
     "start": "next start -p 3005",
     "lint": "next lint",
@@ -19,6 +19,7 @@
     "@univerjs/preset-sheets-core": "^0.22.1",
     "@univerjs/presets": "^0.22.1",
     "googleapis": "^171.4.0",
+    "jose": "^6.2.3",
     "lucide-react": "^1.16.0",
     "next": "14.2.35",
     "react": "^18",

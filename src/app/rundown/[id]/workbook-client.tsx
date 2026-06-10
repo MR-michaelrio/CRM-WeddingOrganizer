@@ -141,7 +141,7 @@ export function WorkbookClient({
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
+    const url = `${window.location.origin}/share/workbook/${clientId}`;
     try {
       await navigator.clipboard.writeText(url);
       setShareCopied(true);
@@ -149,6 +149,7 @@ export function WorkbookClient({
     } catch {
       window.prompt("Copy link:", url);
     }
+    // Catatan: link butuh PIN 6 digit yang di-set di Client detail.
   };
 
   return (
@@ -176,9 +177,13 @@ export function WorkbookClient({
           <Printer className="h-3.5 w-3.5" />
           Print
         </button>
-        <button onClick={handleShare} className="btn btn-secondary !py-1.5 text-xs">
+        <button
+          onClick={handleShare}
+          className="btn btn-secondary !py-1.5 text-xs"
+          title="Copy public share link (butuh PIN dari Client detail)"
+        >
           <Share2 className="h-3.5 w-3.5" />
-          {shareCopied ? "Link copied!" : "Share link"}
+          {shareCopied ? "Link copied! Jangan lupa PIN" : "Share link"}
         </button>
       </div>
       <div className="flex-1 overflow-hidden bg-card">

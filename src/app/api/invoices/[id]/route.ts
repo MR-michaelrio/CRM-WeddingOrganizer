@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { badRequest, notFound, ok, parseJson, serverError } from "@/lib/api-helpers";
+import { generateInvoiceNumber } from "@/lib/invoice-number";
 
-type InvoiceItem = { description: string; qty: number; price: number };
+type InvoiceItem = { description: string; qty: number; price: number; details?: string };
 
 type UpdateBody = Partial<{
   type: string;
@@ -72,7 +73,61 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
 
-    return ok(invoice);
+    // ---- Auto-create invoice Pelunasan ----
+    // Trigger: DP baru ditandai paid + belum ada invoice Pelunasan untuk
+    // client ini + ada sisa pembayaran (> 0). Status Pelunasan = draft,
+    // dueDate default = eventDate - 7 hari, items disalin dari DP supaya
+    // template Pelunasan tetap menampilkan paket yang sama.
+    let autoCreatedPelunasanId: number | null = null;
+    if (
+      body.status === "paid" &&
+      invoice.type === "dp" &&
+      invoice.status === "paid" // sudah benar2 ke-update
+    ) {
+      const existingPelunasan = await prisma.invoice.findFirst({
+        where: { clientId: invoice.clientId, type: "pelunasan" },
+        select: { id: true },
+      });
+      if (!existingPelunasan) {
+        const dpItems = (invoice.items as InvoiceItem[] | null) ?? [];
+        const subtotalFromItems = dpItems.reduce(
+          (s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0),
+          0
+        );
+        const total =
+          subtotalFromItems > 0
+            ? subtotalFromItems
+            : Number(invoice.client.contractValue ?? 0);
+        const sisa = Math.max(0, total - Number(invoice.amount));
+
+        if (sisa > 0) {
+          // Default dueDate Pelunasan = eventDate - 7 hari.
+          let pelunasanDueDate: Date | null = null;
+          if (invoice.client.eventDate) {
+            const d = new Date(invoice.client.eventDate);
+            d.setDate(d.getDate() - 7);
+            pelunasanDueDate = d;
+          }
+          const number = await generateInvoiceNumber();
+          const created = await prisma.invoice.create({
+            data: {
+              number,
+              clientId: invoice.clientId,
+              type: "pelunasan",
+              amount: sisa,
+              items: dpItems as unknown as object[],
+              eventLabel: invoice.eventLabel,
+              dueDate: pelunasanDueDate,
+              status: "draft",
+              notes: null,
+            },
+          });
+          autoCreatedPelunasanId = created.id;
+        }
+      }
+    }
+
+    return ok({ ...invoice, autoCreatedPelunasanId });
   } catch (err) {
     return serverError(err);
   }

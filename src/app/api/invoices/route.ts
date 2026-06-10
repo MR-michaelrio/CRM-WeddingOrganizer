@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { badRequest, created, ok, parseJson, serverError } from "@/lib/api-helpers";
+import { generateInvoiceNumber } from "@/lib/invoice-number";
 
-type InvoiceItem = { description: string; qty: number; price: number };
+type InvoiceItem = { description: string; qty: number; price: number; details?: string };
 
 type CreateInvoiceBody = {
   clientId: number;
@@ -13,19 +14,6 @@ type CreateInvoiceBody = {
   items?: InvoiceItem[] | null;
   eventLabel?: string | null;
 };
-
-async function generateInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}-`;
-  const latest = await prisma.invoice.findFirst({
-    where: { number: { startsWith: prefix } },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const lastSeq = latest ? Number(latest.number.slice(prefix.length)) || 0 : 0;
-  const next = String(lastSeq + 1).padStart(4, "0");
-  return `${prefix}${next}`;
-}
 
 export async function GET() {
   try {
