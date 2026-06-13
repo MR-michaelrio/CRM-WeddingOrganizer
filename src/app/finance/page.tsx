@@ -8,7 +8,6 @@ import {
   TrendingUp,
   Plus,
   Ban,
-  Paperclip,
   FileText,
   Image as ImageIcon,
 } from "lucide-react";

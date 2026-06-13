@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, KeyRound, RefreshCw, Check, Eye, EyeOff } from "lucide-react";
 import { apiFetch } from "@/lib/use-fetch";
 
@@ -19,11 +19,12 @@ export function WorkbookPinCard({ clientId, initialPin }: Props) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<"pin" | "link" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Origin di-set setelah mount supaya render awal (server & client) sama
+  // (relatif), menghindari hydration mismatch.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
-  const shareUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/share/workbook/${clientId}`
-      : `/share/workbook/${clientId}`;
+  const shareUrl = `${origin}/share/workbook/${clientId}`;
 
   const updatePin = async (next: string | null) => {
     setBusy(true);
