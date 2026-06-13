@@ -38,3 +38,7 @@ client_secret_*.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# whatsapp-web.js session
+.wwebjs_auth/
+.wwebjs_cache/

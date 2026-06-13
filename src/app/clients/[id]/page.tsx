@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   Mail,
   MapPin,
+  MessageCircle,
   Palette,
   Phone,
   Receipt,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/transaction-status";
 import { WorkbookPinCard } from "@/components/forms/workbook-pin-card";
 import { CrewAssignmentPanel } from "@/components/forms/crew-assignment-panel";
+import { WhatsAppActions } from "@/components/forms/whatsapp-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +116,8 @@ export default async function ClientDetailPage({ params }: Params) {
 
   if (!client) notFound();
 
+  const settings = await prisma.setting.findFirst();
+
   const totalPaid = client.payments
     .filter((p) => p.type !== "expense" && p.type !== "vendor")
     .reduce((s, p) => s + Number(p.amount), 0);
@@ -147,6 +151,31 @@ export default async function ClientDetailPage({ params }: Params) {
     txStatus === "paid_dp" ||
     txStatus === "paid_lunas" ||
     txStatus === "overdue";
+
+  // ---- Data untuk tombol WhatsApp ----
+  // Tombol "Kirim Invoice" mengirim invoice DP (utama); tombol Pelunasan
+  // mengirim invoice pelunasan secara terpisah.
+  const waInvoiceSrc = dpInvoice ?? client.invoices[0] ?? null;
+  const waInvoice = waInvoiceSrc
+    ? {
+        id: waInvoiceSrc.id,
+        number: waInvoiceSrc.number,
+        amount: Number(waInvoiceSrc.amount),
+        type: waInvoiceSrc.type,
+        dueDate: waInvoiceSrc.dueDate ? waInvoiceSrc.dueDate.toISOString() : null,
+      }
+    : null;
+  const waCtx = {
+    clientNames: client.names,
+    eventType: client.eventType,
+    eventDate: client.eventDate.toISOString(),
+    brandName: settings?.brandName ?? settings?.companyName ?? "Eclipse",
+    bank: {
+      name: settings?.bankName ?? "",
+      account: settings?.bankAccount ?? "",
+      accountName: settings?.bankAccountName ?? "",
+    },
+  };
 
   return (
     <div className="p-8">
@@ -334,6 +363,27 @@ export default async function ClientDetailPage({ params }: Params) {
                 </Badge>
               </div>
             </div>
+          </SectionCard>
+
+          <SectionCard title="Kirim via WhatsApp" icon={MessageCircle}>
+            <WhatsAppActions
+              phone={client.phone}
+              ctx={waCtx}
+              clientId={client.id}
+              invoice={waInvoice}
+              pelunasanInvoiceId={pelunasanInvoice?.id ?? null}
+              outstanding={outstanding}
+              pelunasanDue={
+                pelunasanInvoice?.dueDate
+                  ? pelunasanInvoice.dueDate.toISOString()
+                  : null
+              }
+              workbookPin={client.workbookPin}
+              dpReceiptId={dpInvoice?.status === "paid" ? dpInvoice.id : null}
+              pelunasanReceiptId={
+                pelunasanInvoice?.status === "paid" ? pelunasanInvoice.id : null
+              }
+            />
           </SectionCard>
 
           <SectionCard title="Gallery" icon={ImageIcon}>

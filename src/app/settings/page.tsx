@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PageLoader } from "@/components/ui/page-loader";
 import { Field, Input, Textarea } from "@/components/ui/form-field";
 import { GoogleAccountCard } from "@/components/settings/google-card";
+import { WhatsAppCard } from "@/components/settings/whatsapp-card";
 import { PackagesCard } from "@/components/settings/packages-card";
 import { apiFetch, useFetch } from "@/lib/use-fetch";
 
@@ -140,6 +141,10 @@ export default function SettingsPage() {
       </div>
 
       <div className="mb-5">
+        <WhatsAppCard />
+      </div>
+
+      <div className="mb-5">
         <PackagesCard />
       </div>
 
@@ -226,7 +231,7 @@ export default function SettingsPage() {
         <h3 className="mb-1 text-lg font-semibold text-ink">Kontrak Kerja Sama</h3>
         <p className="mb-5 text-[13px] text-ink-light">
           Teks default untuk dokumen kontrak. Pisahkan paragraf dengan baris kosong, atau gunakan
-          baris yang diawali "- " untuk bullet list.
+          baris yang diawali &quot;- &quot; untuk bullet list.
         </p>
         <div className="flex flex-col gap-4">
           <Field
