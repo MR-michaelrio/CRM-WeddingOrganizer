@@ -5,8 +5,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const errParam = url.searchParams.get("error");
-  const origin = url.origin;
-
+const origin =
+  process.env.APP_URL || "https://home.eclipsegroup.web.id";
   if (errParam) {
     return NextResponse.redirect(
       `${origin}/settings?google_error=${encodeURIComponent(errParam)}`
