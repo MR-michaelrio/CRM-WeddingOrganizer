@@ -36,6 +36,7 @@ model Client {
   eventDate   DateTime
   venue       String?
   package     String?  // Standard, Premium, Luxury
+  jenisBaki   String?
   contractValue Decimal? @db.Decimal(15, 2)
   status      String   @default("active") // planning, active, completed
   eventStatus String   @default("confirmed") // confirmed, pending, inquiry
@@ -105,6 +106,8 @@ model Sheet {
   position   Int      @default(0)
   columns    Json     // string[]
   rows       Json     // Record<string,string>[]
+  layout     Json?    // { columnWidths?: Record<string,number>, rowHeights?: Record<string,number> }
+  snapshot   Json?    // Full Univer per-sheet snapshot: { sheet: IWorksheetData, styles: Record<string,IStyleData> } — preserves cell styles, wrap text, merges, etc.
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -175,17 +178,25 @@ model Setting {
   brandName     String  @default("eclipse.sangjit")
   brandTagline  String  @default("JA BO DE TA BEK")
   brandLogoUrl  String? @default("/logo_eclipsesangjit.png") @db.Text
-  bankName      String  @default("BCA")
-  bankAccount   String  @default("7015466197")
-  bankAccountName String @default("Michael Rio Agustino Tan")
-  signatoryName   String @default("Michael Rio Agustino Tan")
-  signatureUrl    String? @default("/ttd.png") @db.Text
+  bankName          String  @default("BCA")
+  bankAccount       String  @default("7015466197")
+  bankAccountName   String  @default("Michael Rio Agustino Tan")
+  defaultJenisBaki  String?
+  signatoryName     String  @default("Michael Rio Agustino Tan")
+  signatureUrl      String? @default("/ttd.png") @db.Text
   thankYouMessage String @default("TERIMAKASIH ATAS KEPERCAYAAN ANDA")
   // Contract template (Kontrak Kerja Sama) — editable di Settings.
   // Multi-paragraph; pakai newline antar paragraf.
   contractTerms        String? @db.Text
   contractCancellation String? @db.Text
   contractPaymentTerms String? @db.Text
+  // WhatsApp message templates (editable di Settings). Pakai token {var}.
+  waTemplateInvoice          String? @db.Text
+  waTemplateReminder         String? @db.Text
+  waTemplateReceiptDp        String? @db.Text
+  waTemplateReceiptPelunasan String? @db.Text
+  waTemplateWorkbook         String? @db.Text
+  waTemplateMeeting          String? @db.Text
   // Preferences (booleans stored as Int 0/1 for portability)
   emailNotifications Boolean @default(true)
   autoBackup         Boolean @default(true)

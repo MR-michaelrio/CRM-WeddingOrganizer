@@ -9,6 +9,7 @@ export type ClientDTO = {
   eventDate: string;
   venue: string | null;
   package: string | null;
+  jenisBaki: string | null;
   contractValue: string | null;
   status: "planning" | "active" | "completed";
   eventStatus: "confirmed" | "pending" | "inquiry";

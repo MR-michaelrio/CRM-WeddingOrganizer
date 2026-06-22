@@ -42,3 +42,8 @@ next-env.d.ts
 # whatsapp-web.js session
 .wwebjs_auth/
 .wwebjs_cache/
+
+# Data dumps / import sumber (jangan di-commit)
+2026.xlsx
+Pengeluaran 2025 dan 2026.xlsx
+import_2026.sql

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
+import { prisma } from "@/lib/prisma";
 
 const inter = localFont({
   src: [
@@ -23,11 +24,23 @@ const cormorant = localFont({
   fallback: ["serif"],
 });
 
-export const metadata: Metadata = {
-  title: "WO Premium — Wedding Organizer Management System",
-  description:
-    "Premium operational hub for Wedding Organizer, Sangjit Organizer, and Decoration teams.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let companyName = "WO Premium";
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { id: 1 },
+      select: { companyName: true },
+    });
+    if (setting?.companyName?.trim()) companyName = setting.companyName.trim();
+  } catch {
+    /* fallback to default name */
+  }
+  return {
+    title: `${companyName} — Management System`,
+    description:
+      "Operational hub for Wedding Organizer, Sangjit Organizer, and Decoration teams.",
+  };
+}
 
 export default function RootLayout({
   children,

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Box,
   Calendar,
   CheckSquare,
   ExternalLink,
@@ -189,7 +190,7 @@ export default async function ClientDetailPage({ params }: Params) {
 
       <PageHeader
         title={client.names}
-        subtitle={`${client.eventType} · ${formatDateID(client.eventDate)}`}
+        subtitle={`${client.eventType} · ${formatDateID(client.eventDate)}${client.jenisBaki ? ` · ${client.jenisBaki}` : ""}`}
         action={
           <div className="flex flex-wrap gap-2">
             <Link href={`/rundown/${client.id}`} className="btn btn-secondary">
@@ -337,6 +338,7 @@ export default async function ClientDetailPage({ params }: Params) {
               <Row icon={Mail} label="Email" value={client.email ?? "—"} />
               <Row icon={Phone} label="Phone" value={client.phone ?? "—"} />
               <Row icon={MapPin} label="Venue" value={client.venue ?? "—"} />
+              <Row icon={Box} label="Jenis Baki" value={client.jenisBaki ?? "—"} />
               <Row
                 icon={Calendar}
                 label="Event date"

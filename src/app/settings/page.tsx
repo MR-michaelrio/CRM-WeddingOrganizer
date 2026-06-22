@@ -6,6 +6,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { Field, Input, Textarea } from "@/components/ui/form-field";
 import { GoogleAccountCard } from "@/components/settings/google-card";
 import { WhatsAppCard } from "@/components/settings/whatsapp-card";
+import { WhatsAppTemplatesCard } from "@/components/settings/whatsapp-templates-card";
 import { PackagesCard } from "@/components/settings/packages-card";
 import { apiFetch, useFetch } from "@/lib/use-fetch";
 
@@ -21,6 +22,7 @@ type SettingDTO = {
   bankName: string;
   bankAccount: string;
   bankAccountName: string;
+  defaultJenisBaki: string | null;
   signatoryName: string;
   signatureUrl: string | null;
   thankYouMessage: string;
@@ -91,6 +93,7 @@ export default function SettingsPage() {
           bankName: form.bankName,
           bankAccount: form.bankAccount,
           bankAccountName: form.bankAccountName,
+          defaultJenisBaki: form.defaultJenisBaki,
           signatoryName: form.signatoryName,
           signatureUrl: form.signatureUrl,
           thankYouMessage: form.thankYouMessage,
@@ -145,6 +148,10 @@ export default function SettingsPage() {
       </div>
 
       <div className="mb-5">
+        <WhatsAppTemplatesCard />
+      </div>
+
+      <div className="mb-5">
         <PackagesCard />
       </div>
 
@@ -193,10 +200,28 @@ export default function SettingsPage() {
               placeholder="7015466197"
             />
           </Field>
-          <Field label="Atas Nama" className="sm:col-span-2">
+          <Field label="Atas Nama">
             <Input
               value={form.bankAccountName}
               onChange={(e) => updateField("bankAccountName", e.target.value)}
+              placeholder="Michael Rio Agustino Tan"
+            />
+          </Field>
+          <Field
+            label="Pilihan Jenis Baki"
+            className="sm:col-span-2"
+            hint="Daftar pilihan untuk dropdown Jenis Baki di form client. Pisahkan tiap pilihan dengan koma."
+          >
+            <Input
+              value={form.defaultJenisBaki ?? ""}
+              onChange={(e) => updateField("defaultJenisBaki", e.target.value || null)}
+              placeholder="Gold, Merah Ukir, Terarium, Akrilik"
+            />
+          </Field>
+          <Field label="Signatory Name" className="sm:col-span-2">
+            <Input
+              value={form.signatoryName}
+              onChange={(e) => updateField("signatoryName", e.target.value)}
               placeholder="Michael Rio Agustino Tan"
             />
           </Field>

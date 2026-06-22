@@ -10,13 +10,14 @@ import {
   Send,
   Video,
 } from "lucide-react";
-import { apiFetch } from "@/lib/use-fetch";
+import { apiFetch, useFetch } from "@/lib/use-fetch";
 import {
   invoiceMessage,
   paymentReminderMessage,
   meetingMessage,
   workbookMessage,
   receiptMessage,
+  resolveTemplates,
   type WaTemplateCtx,
   type WaInvoice,
 } from "@/lib/whatsapp-templates";
@@ -65,6 +66,12 @@ export function WhatsAppActions({
   const [meetingAt, setMeetingAt] = useState(defaultMeetingLocal());
   const [pin, setPin] = useState<string | null>(workbookPin);
 
+  // Template WhatsApp dari Settings (fallback ke default bila belum diatur).
+  const { data: settingTpl } = useFetch<
+    Record<string, string | null>
+  >("/api/settings");
+  const templates = resolveTemplates(settingTpl);
+
   const hasPhone = Boolean(phone);
 
   async function send(key: string, message: string, opts: SendOpts = {}) {
@@ -112,7 +119,7 @@ export function WhatsAppActions({
       }
       await apiFetch("/api/whatsapp/send", {
         method: "POST",
-        body: { phone, message: workbookMessage(ctx, workbookLink(), usePin) },
+        body: { phone, message: workbookMessage(ctx, workbookLink(), usePin, templates.workbook) },
       });
       setResult({ kind: "success", message: `Link workbook + PIN (${usePin}) terkirim ✓` });
     } catch (err) {
@@ -147,7 +154,7 @@ export function WhatsAppActions({
         throw new Error("Meet link gagal dibuat. Pastikan Google terhubung di Settings.");
       await apiFetch("/api/whatsapp/send", {
         method: "POST",
-        body: { phone, message: meetingMessage(ctx, event.meetLink) },
+        body: { phone, message: meetingMessage(ctx, event.meetLink, templates.meeting) },
       });
       setResult({ kind: "success", message: "Google Meet dibuat & link terkirim ✓" });
     } catch (err) {
@@ -190,7 +197,10 @@ export function WhatsAppActions({
 
       <button
         onClick={() =>
-          invoice && send("invoice", invoiceMessage(ctx, invoice), { invoiceId: invoice.id })
+          invoice &&
+          send("invoice", invoiceMessage(ctx, invoice, templates.invoice), {
+            invoiceId: invoice.id,
+          })
         }
         disabled={!hasPhone || !invoice || busy !== null}
         className="btn btn-primary justify-start text-sm disabled:opacity-50"
@@ -202,9 +212,13 @@ export function WhatsAppActions({
 
       <button
         onClick={() =>
-          send("reminder", paymentReminderMessage(ctx, outstanding, pelunasanDue), {
-            invoiceId: pelunasanInvoiceId ?? undefined,
-          })
+          send(
+            "reminder",
+            paymentReminderMessage(ctx, outstanding, pelunasanDue, templates.reminder),
+            {
+              invoiceId: pelunasanInvoiceId ?? undefined,
+            }
+          )
         }
         disabled={!hasPhone || outstanding <= 0 || busy !== null}
         className="btn btn-secondary justify-start text-sm disabled:opacity-50"
@@ -219,7 +233,7 @@ export function WhatsAppActions({
       </button>
 
       <button
-        onClick={() => dpReceiptId && send("kw-dp", receiptMessage(ctx, "dp"), { invoiceId: dpReceiptId, doc: "receipt" })}
+        onClick={() => dpReceiptId && send("kw-dp", receiptMessage(ctx, "dp", templates.receiptDp), { invoiceId: dpReceiptId, doc: "receipt" })}
         disabled={!hasPhone || !dpReceiptId || busy !== null}
         className="btn btn-secondary justify-start text-sm disabled:opacity-50"
       >
@@ -231,7 +245,7 @@ export function WhatsAppActions({
       <button
         onClick={() =>
           pelunasanReceiptId &&
-          send("kw-pelunasan", receiptMessage(ctx, "pelunasan"), {
+          send("kw-pelunasan", receiptMessage(ctx, "pelunasan", templates.receiptPelunasan), {
             invoiceId: pelunasanReceiptId,
             doc: "receipt",
           })
@@ -288,7 +302,7 @@ export function WhatsAppActions({
           className="mb-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-gold-dark"
         />
         <button
-          onClick={() => send("meeting", meetingMessage(ctx, meetingLink.trim()))}
+          onClick={() => send("meeting", meetingMessage(ctx, meetingLink.trim(), templates.meeting))}
           disabled={!hasPhone || !meetingLink.trim() || busy !== null}
           className="btn btn-secondary w-full justify-center text-sm disabled:opacity-50"
         >
