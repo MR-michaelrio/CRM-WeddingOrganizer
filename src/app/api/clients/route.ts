@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { created, ok, parseJson, serverError } from "@/lib/api-helpers";
+import { badRequest, created, ok, parseJson, serverError } from "@/lib/api-helpers";
+import { checkBakiConflicts, formatSameDayError } from "@/lib/baki-conflicts";
+import { parseJenisBakiList } from "@/lib/jenis-baki";
 import {
   DAFTAR_BAKI_COLUMNS,
   SANGJIT_RUNDOWN_COLUMNS,
@@ -15,6 +17,7 @@ type CreateClientBody = {
   eventDate: string;
   venue?: string;
   package?: string;
+  jenisBaki?: string;
   contractValue?: number;
   notes?: string;
   picId?: number;
@@ -37,6 +40,16 @@ export async function POST(req: Request) {
   try {
     const body = await parseJson<CreateClientBody>(req);
 
+    // Blokir pemakaian jenis baki yang sama di hari sangjit yang sama.
+    const { sameDay } = await checkBakiConflicts({
+      date: body.eventDate,
+      jenisBaki: parseJenisBakiList(body.jenisBaki),
+      eventType: body.eventType,
+    });
+    if (sameDay.length > 0) {
+      return badRequest(formatSameDayError(sameDay));
+    }
+
     const client = await prisma.client.create({
       data: {
         names: body.names,
@@ -46,6 +59,7 @@ export async function POST(req: Request) {
         eventDate: new Date(body.eventDate),
         venue: body.venue,
         package: body.package,
+        jenisBaki: body.jenisBaki,
         contractValue: body.contractValue,
         notes: body.notes,
         picId: body.picId,

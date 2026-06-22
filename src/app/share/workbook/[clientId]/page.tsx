@@ -73,6 +73,8 @@ export default async function ShareWorkbookPage({
     name: s.name,
     columns: (s.columns as string[]) ?? [],
     rows: (s.rows as Record<string, string>[]) ?? [],
+    layout: (s.layout as { columnWidths?: Record<string, number>; rowHeights?: Record<string, number> } | null) ?? null,
+    snapshot: (s.snapshot as { sheet: Record<string, unknown>; styles: Record<string, unknown> } | null) ?? null,
   }));
 
   return (

@@ -6,8 +6,19 @@
 //   WHATSAPP_API_URL   — base URL service (default http://localhost:3010)
 //   WHATSAPP_API_TOKEN — shared token opsional (header x-api-key)
 
-const BASE_URL = (process.env.WHATSAPP_API_URL || "http://localhost:3010").replace(/\/+$/, "");
+import { normalizeWhatsAppPhone } from "@/lib/phone";
+
+// Pakai 127.0.0.1 alih-alih localhost: fetch Node (undici) bisa lambat karena
+// mencoba IPv6 (::1) dulu untuk "localhost". 127.0.0.1 menghindari delay itu.
+const BASE_URL = (process.env.WHATSAPP_API_URL || "http://localhost:3010")
+  .replace(/\/+$/, "")
+  .replace("//localhost", "//127.0.0.1");
 const API_TOKEN = process.env.WHATSAPP_API_TOKEN || "";
+
+// Timeout default per request ke service. Status check pakai timeout pendek
+// supaya UI tidak menggantung kalau service sibuk/lambat.
+const DEFAULT_TIMEOUT_MS = 8000;
+const STATUS_TIMEOUT_MS = 4000;
 
 export type WhatsAppStatus =
   | "idle"
@@ -43,12 +54,35 @@ function headers(): HeadersInit {
 
 // Wrapper fetch ke service. `service_down` dipakai bila service tak bisa
 // dihubungi (mis. belum dijalankan) — diperlakukan seperti not_ready (409).
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: { ...headers(), ...(init?.headers ?? {}) },
-    cache: "no-store",
-  });
+async function call<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<T> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: { ...headers(), ...(init?.headers ?? {}) },
+      cache: "no-store",
+      signal: ac.signal,
+    });
+  } catch (err) {
+    // Abort (timeout) atau koneksi gagal → anggap service tidak responsif.
+    const aborted = err instanceof Error && err.name === "AbortError";
+    const e = new Error(
+      aborted
+        ? `WhatsApp service tidak merespons (timeout ${timeoutMs}ms).`
+        : "WhatsApp service tidak dapat dihubungi."
+    ) as Error & { status: number; payload: unknown };
+    e.status = 0;
+    e.payload = { code: "service_down" };
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
     const err = new Error(data?.error || `${res.status} ${res.statusText}`) as Error & {
@@ -64,7 +98,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
   try {
-    return await call<WhatsAppStatusResponse>("/status");
+    return await call<WhatsAppStatusResponse>("/status", undefined, STATUS_TIMEOUT_MS);
   } catch {
     // Service belum jalan → tampilkan sebagai "disconnected" supaya UI tidak error.
     return {
@@ -91,7 +125,7 @@ export async function sendWhatsApp(phone: string, message: string): Promise<Send
   try {
     const r = await call<{ to: string }>("/send", {
       method: "POST",
-      body: JSON.stringify({ phone, message }),
+      body: JSON.stringify({ phone: normalizeWhatsAppPhone(phone), message }),
     });
     return { ok: true, to: r.to };
   } catch (err) {
@@ -109,7 +143,7 @@ export async function sendWhatsAppHtmlPdf(
   try {
     const r = await call<{ to: string; attachment: string }>("/send-media", {
       method: "POST",
-      body: JSON.stringify({ phone, html, filename, caption }),
+      body: JSON.stringify({ phone: normalizeWhatsAppPhone(phone), html, filename, caption }),
     });
     return { ok: true, to: r.to, attachment: r.attachment };
   } catch (err) {
@@ -126,7 +160,7 @@ export async function sendWhatsAppMedia(
   try {
     const r = await call<{ to: string; attachment: string }>("/send-media", {
       method: "POST",
-      body: JSON.stringify({ phone, ...media, caption }),
+      body: JSON.stringify({ phone: normalizeWhatsAppPhone(phone), ...media, caption }),
     });
     return { ok: true, to: r.to, attachment: r.attachment };
   } catch (err) {

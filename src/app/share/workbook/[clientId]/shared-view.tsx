@@ -9,6 +9,14 @@ type Sheet = {
   name: string;
   columns: string[];
   rows: Record<string, string>[];
+  layout?: {
+    columnWidths?: Record<string, number>;
+    rowHeights?: Record<string, number>;
+  } | null;
+  snapshot?: {
+    sheet: Record<string, unknown>;
+    styles: Record<string, unknown>;
+  } | null;
 };
 
 type Props = {
@@ -51,6 +59,8 @@ export function SharedWorkbookView({
     position: idx,
     columns: s.columns,
     rows: s.rows,
+    layout: s.layout ?? null,
+    snapshot: s.snapshot ?? null,
   }));
 
   return (

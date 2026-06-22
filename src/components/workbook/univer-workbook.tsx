@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import "@univerjs/preset-sheets-core/lib/index.css";
-import type { WorkbookSheetData } from "@/app/rundown/[id]/workbook-client";
+import type {
+  SheetLayout,
+  SheetSnapshotData,
+  WorkbookSheetData,
+} from "@/app/rundown/[id]/workbook-client";
 
 type UniverWorkbookProps = {
   workbookId: string;
@@ -32,9 +36,39 @@ type SheetSnapshot = {
   name: string;
   columns: string[];
   rows: Record<string, string>[];
+  layout: SheetLayout;
+  snapshot: SheetSnapshotData;
 };
 
 type CellPayload = { v?: string; f?: string };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, any>;
+
+/**
+ * Ambil snapshot lengkap satu worksheet beserta subset style yang dirujuk
+ * sel-selnya. Menyimpan ini berarti SEMUA format (wrap text, bold, warna,
+ * alignment, number format, merge cell, ukuran) ikut tersimpan & dipulihkan.
+ */
+function extractSheetSnapshot(
+  worksheet: AnyRecord | undefined,
+  stylesMap: AnyRecord
+): SheetSnapshotData {
+  const sheet = JSON.parse(JSON.stringify(worksheet ?? {})) as AnyRecord;
+  const styles: AnyRecord = {};
+  const cellData = (sheet.cellData ?? {}) as AnyRecord;
+  for (const r of Object.keys(cellData)) {
+    const row = cellData[r] as AnyRecord;
+    if (!row) continue;
+    for (const c of Object.keys(row)) {
+      const s = row[c]?.s;
+      if (typeof s === "string" && stylesMap[s] !== undefined) {
+        styles[s] = stylesMap[s];
+      }
+    }
+  }
+  return { sheet, styles };
+}
 
 function buildCellData(sheet: WorkbookSheetData) {
   const cellData: Record<number, Record<number, CellPayload>> = { 0: {} };
@@ -94,6 +128,34 @@ function cellDataToRows(
   return rows;
 }
 
+function columnsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function recordEqual(
+  a: Record<string, number> = {},
+  b: Record<string, number> = {}
+): boolean {
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  for (const k of ak) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+function layoutEqual(a?: SheetLayout, b?: SheetLayout): boolean {
+  return (
+    recordEqual(a?.columnWidths, b?.columnWidths) &&
+    recordEqual(a?.rowHeights, b?.rowHeights)
+  );
+}
+
 function rowsEqual(a: Record<string, string>[], b: Record<string, string>[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -123,6 +185,10 @@ export function UniverWorkbook({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const apiRef = useRef<any>(null);
   const lastSavedRows = useRef<Map<number, Record<string, string>[]>>(new Map());
+  const lastSavedColumns = useRef<Map<number, string[]>>(new Map());
+  const lastSavedLayout = useRef<Map<number, SheetLayout>>(new Map());
+  // JSON string snapshot per sheet untuk deteksi perubahan format/struktur.
+  const lastSavedSnapshot = useRef<Map<number, string>>(new Map());
   const onReadyRef = useRef(onReady);
   const onSaveStatusChangeRef = useRef(onSaveStatusChange);
   const [ready, setReady] = useState(false);
@@ -133,9 +199,12 @@ export function UniverWorkbook({
     onSaveStatusChangeRef.current = onSaveStatusChange;
   });
 
-  // Initialize lastSavedRows with the initial server state
+  // Initialize lastSaved* with the initial server state
   useEffect(() => {
-    sheets.forEach((s) => lastSavedRows.current.set(s.id, s.rows));
+    sheets.forEach((s) => {
+      lastSavedRows.current.set(s.id, s.rows);
+      lastSavedColumns.current.set(s.id, s.columns);
+    });
   }, [sheets]);
 
   function readSnapshots(): SheetSnapshot[] {
@@ -147,19 +216,43 @@ export function UniverWorkbook({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wbSnap = (wb.save ? wb.save() : wb.getSnapshot?.()) as any;
     const sheetsMap = wbSnap?.sheets ?? {};
+    const stylesMap = (wbSnap?.styles ?? {}) as AnyRecord;
     return sheets.map((s) => {
       const sheetData = sheetsMap[s.slug];
       const cellData = (sheetData?.cellData ?? {}) as Record<
         string,
         Record<string, { v?: unknown }>
       >;
-      const rows = cellDataToRows(cellData, s.columns);
+      // Baris 0 = header. Baca label kolom yang sudah diedit user; kalau sel
+      // dikosongkan, fallback ke nama kolom lama supaya tidak jadi string kosong.
+      const headerRow = cellData["0"] ?? {};
+      const columns = s.columns.map((orig, idx) => {
+        const v = headerRow[String(idx)]?.v;
+        const label = v === undefined || v === null ? "" : String(v).trim();
+        return label || orig;
+      });
+      const rows = cellDataToRows(cellData, columns);
+
+      // Baca lebar kolom & tinggi baris dari snapshot Univer.
+      const colData = (sheetData?.columnData ?? {}) as Record<string, { w?: unknown }>;
+      const rowData = (sheetData?.rowData ?? {}) as Record<string, { h?: unknown }>;
+      const columnWidths: Record<string, number> = {};
+      Object.entries(colData).forEach(([idx, c]) => {
+        if (typeof c?.w === "number") columnWidths[idx] = c.w;
+      });
+      const rowHeights: Record<string, number> = {};
+      Object.entries(rowData).forEach(([idx, r]) => {
+        if (typeof r?.h === "number") rowHeights[idx] = r.h;
+      });
+
       return {
         sheetId: s.id,
         slug: s.slug,
         name: s.name,
-        columns: s.columns,
+        columns,
         rows,
+        layout: { columnWidths, rowHeights },
+        snapshot: extractSheetSnapshot(sheetData, stylesMap),
       };
     });
   }
@@ -169,8 +262,16 @@ export function UniverWorkbook({
     if (snaps.length === 0) return;
 
     const dirty = snaps.filter((s) => {
-      const last = lastSavedRows.current.get(s.sheetId) ?? [];
-      return !rowsEqual(last, s.rows);
+      const lastRows = lastSavedRows.current.get(s.sheetId) ?? [];
+      const lastCols = lastSavedColumns.current.get(s.sheetId) ?? s.columns;
+      const lastLayout = lastSavedLayout.current.get(s.sheetId);
+      const lastSnap = lastSavedSnapshot.current.get(s.sheetId);
+      return (
+        !rowsEqual(lastRows, s.rows) ||
+        !columnsEqual(lastCols, s.columns) ||
+        !layoutEqual(lastLayout, s.layout) ||
+        lastSnap !== JSON.stringify(s.snapshot)
+      );
     });
     if (!force && dirty.length === 0) return;
 
@@ -219,10 +320,18 @@ export function UniverWorkbook({
           fetch(`/api/sheets/${s.sheetId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rows: s.rows }),
+            body: JSON.stringify({
+              rows: s.rows,
+              columns: s.columns,
+              layout: s.layout,
+              snapshot: s.snapshot,
+            }),
           }).then((res) => {
             if (!res.ok) throw new Error(`Save failed (${res.status})`);
             lastSavedRows.current.set(s.sheetId, s.rows);
+            lastSavedColumns.current.set(s.sheetId, s.columns);
+            lastSavedLayout.current.set(s.sheetId, s.layout);
+            lastSavedSnapshot.current.set(s.sheetId, JSON.stringify(s.snapshot));
           })
         )
       );
@@ -237,6 +346,15 @@ export function UniverWorkbook({
   // Expose the save handle to the parent once Univer is ready.
   useEffect(() => {
     if (!ready) return;
+    // Tetapkan baseline dari state awal Univer (termasuk lebar/tinggi default
+    // yang dirender) supaya perubahan terdeteksi relatif ke tampilan awal —
+    // mencegah auto-save palsu saat halaman baru dibuka.
+    readSnapshots().forEach((s) => {
+      lastSavedRows.current.set(s.sheetId, s.rows);
+      lastSavedColumns.current.set(s.sheetId, s.columns);
+      lastSavedLayout.current.set(s.sheetId, s.layout);
+      lastSavedSnapshot.current.set(s.sheetId, JSON.stringify(s.snapshot));
+    });
     onReadyRef.current?.({ save: () => saveAll(true) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
@@ -287,15 +405,42 @@ export function UniverWorkbook({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sheetsConfig: Record<string, any> = {};
       const sheetOrder: string[] = [];
+      // Style map gabungan dari semua snapshot sheet (preserve format sel).
+      const mergedStyles: AnyRecord = {};
 
       sheets.forEach((sheet) => {
         sheetOrder.push(sheet.slug);
+
+        // Jika ada snapshot tersimpan, pulihkan sheet persis seperti terakhir
+        // (lengkap dgn wrap text, bold, warna, alignment, number format, merge,
+        // ukuran kolom/baris). Override id & name supaya konsisten dgn DB.
+        if (sheet.snapshot?.sheet) {
+          sheetsConfig[sheet.slug] = {
+            ...sheet.snapshot.sheet,
+            id: sheet.slug,
+            name: sheet.name,
+          };
+          Object.assign(mergedStyles, sheet.snapshot.styles ?? {});
+          return;
+        }
+
+        // Tanpa snapshot (sheet lama/baru): bangun dari columns/rows + layout.
         const maxColumns = Math.max(sheet.columns.length + 2, 26);
         const maxRows = Math.max(sheet.rows.length + 20, 100);
 
+        const savedWidths = sheet.layout?.columnWidths ?? {};
         const columnData: Record<number, { w: number }> = {};
         sheet.columns.forEach((_, idx) => {
           columnData[idx] = { w: 160 };
+        });
+        Object.entries(savedWidths).forEach(([idx, w]) => {
+          if (typeof w === "number") columnData[Number(idx)] = { w };
+        });
+
+        const savedHeights = sheet.layout?.rowHeights ?? {};
+        const rowData: Record<number, { h: number }> = {};
+        Object.entries(savedHeights).forEach(([idx, h]) => {
+          if (typeof h === "number") rowData[Number(idx)] = { h };
         });
 
         sheetsConfig[sheet.slug] = {
@@ -305,6 +450,7 @@ export function UniverWorkbook({
           rowCount: maxRows,
           columnCount: maxColumns,
           columnData,
+          rowData,
           defaultColumnWidth: 120,
           defaultRowHeight: 28,
           freeze: { startRow: 1, startColumn: 0, ySplit: 1, xSplit: 0 },
@@ -316,7 +462,7 @@ export function UniverWorkbook({
         name: title,
         appVersion: "1.0.0",
         locale: LocaleType.EN_US,
-        styles: {},
+        styles: mergedStyles,
         sheetOrder,
         sheets: sheetsConfig,
       });
@@ -361,8 +507,16 @@ export function UniverWorkbook({
     const timer = setInterval(() => {
       const snaps = readSnapshots();
       const anyDirty = snaps.some((s) => {
-        const last = lastSavedRows.current.get(s.sheetId) ?? [];
-        return !rowsEqual(last, s.rows);
+        const lastRows = lastSavedRows.current.get(s.sheetId) ?? [];
+        const lastCols = lastSavedColumns.current.get(s.sheetId) ?? s.columns;
+        const lastLayout = lastSavedLayout.current.get(s.sheetId);
+        const lastSnap = lastSavedSnapshot.current.get(s.sheetId);
+        return (
+          !rowsEqual(lastRows, s.rows) ||
+          !columnsEqual(lastCols, s.columns) ||
+          !layoutEqual(lastLayout, s.layout) ||
+          lastSnap !== JSON.stringify(s.snapshot)
+        );
       });
       if (anyDirty) {
         onSaveStatusChangeRef.current?.({ state: "dirty" });

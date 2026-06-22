@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navSections } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { useFetch } from "@/lib/use-fetch";
 
 type SidebarProps = {
   mobileVisible: boolean;
@@ -12,6 +13,11 @@ type SidebarProps = {
 
 export function Sidebar({ mobileVisible, onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const { data: settings } = useFetch<{ companyName?: string | null }>(
+    "/api/settings"
+  );
+  const companyName = settings?.companyName?.trim() || "WO Premium";
+  const logoLetter = companyName.charAt(0).toUpperCase();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -41,10 +47,10 @@ export function Sidebar({ mobileVisible, onNavigate }: SidebarProps) {
                 background: "linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark))",
               }}
             >
-              W
+              {logoLetter}
             </div>
             <div className="flex flex-col">
-              <span className="font-serif text-lg font-semibold text-ink">WO Premium</span>
+              <span className="font-serif text-lg font-semibold text-ink">{companyName}</span>
               <span className="text-[11px] uppercase tracking-wider text-ink-light">
                 Management System
               </span>

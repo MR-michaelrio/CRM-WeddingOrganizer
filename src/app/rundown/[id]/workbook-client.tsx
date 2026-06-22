@@ -2,8 +2,29 @@
 
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
-import { Check, CloudUpload, Download, Loader2, Printer, Save, Share2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Check,
+  CloudUpload,
+  Download,
+  Layers,
+  Loader2,
+  Printer,
+  Save,
+  Share2,
+} from "lucide-react";
 import type { SaveStatus, UniverWorkbookHandle } from "@/components/workbook/univer-workbook";
+import { ManageSheetsDialog } from "@/components/workbook/manage-sheets-dialog";
+
+export type SheetLayout = {
+  columnWidths?: Record<string, number>;
+  rowHeights?: Record<string, number>;
+};
+
+export type SheetSnapshotData = {
+  sheet: Record<string, unknown>;
+  styles: Record<string, unknown>;
+};
 
 export type WorkbookSheetData = {
   id: number;
@@ -12,6 +33,8 @@ export type WorkbookSheetData = {
   position: number;
   columns: string[];
   rows: Record<string, string>[];
+  layout?: SheetLayout | null;
+  snapshot?: SheetSnapshotData | null;
 };
 
 const UniverWorkbook = dynamic(
@@ -80,14 +103,29 @@ export function WorkbookClient({
   title,
   clientName,
 }: WorkbookClientProps) {
+  const router = useRouter();
   const [handle, setHandle] = useState<UniverWorkbookHandle | null>(null);
   const [status, setStatus] = useState<SaveStatus>({ state: "idle" });
   const [exporting, setExporting] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
 
   const handleReady = useCallback((h: UniverWorkbookHandle) => {
     setHandle(h);
   }, []);
+
+  // Simpan edit yang sedang berjalan sebelum sheet di-mutate & Univer remount.
+  const saveCurrent = useCallback(async () => {
+    try {
+      await handle?.save();
+    } catch {
+      /* abaikan; mutasi sheet tetap lanjut dgn state terakhir tersimpan */
+    }
+  }, [handle]);
+
+  // Tanda tangan sheet: berubah saat sheet ditambah/dihapus/di-rename →
+  // memaksa UniverWorkbook remount agar tampilan sinkron dgn DB.
+  const sheetsKey = sheets.map((s) => `${s.id}:${s.name}`).join("|");
 
   const handleSave = async () => {
     if (!handle) return;
@@ -178,6 +216,14 @@ export function WorkbookClient({
           Print
         </button>
         <button
+          onClick={() => setManageOpen(true)}
+          className="btn btn-secondary !py-1.5 text-xs"
+          title="Tambah, ganti nama, atau hapus sheet"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Kelola Sheet
+        </button>
+        <button
           onClick={handleShare}
           className="btn btn-secondary !py-1.5 text-xs"
           title="Copy public share link (butuh PIN dari Client detail)"
@@ -188,6 +234,7 @@ export function WorkbookClient({
       </div>
       <div className="flex-1 overflow-hidden bg-card">
         <UniverWorkbook
+          key={sheetsKey}
           workbookId={workbookId}
           sheets={sheets}
           title={title}
@@ -195,6 +242,15 @@ export function WorkbookClient({
           onReady={handleReady}
         />
       </div>
+
+      <ManageSheetsDialog
+        open={manageOpen}
+        onClose={() => setManageOpen(false)}
+        clientId={clientId}
+        sheets={sheets}
+        saveCurrent={saveCurrent}
+        refresh={() => router.refresh()}
+      />
     </>
   );
 }
