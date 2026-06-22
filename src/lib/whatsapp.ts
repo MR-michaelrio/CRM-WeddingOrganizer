@@ -169,5 +169,6 @@ export async function sendWhatsAppMedia(
 }
 
 export async function logoutWhatsApp(): Promise<void> {
-  await call("/logout", { method: "POST" });
+  // Logout di service bisa makan waktu (logout + destroy Chrome + hapus sesi).
+  await call("/logout", { method: "POST" }, 20000);
 }

@@ -55,8 +55,16 @@ export function WhatsAppCard() {
     setLoggingOut(true);
     try {
       await apiFetch("/api/whatsapp/logout", { method: "POST" });
-      await load();
+    } catch (err) {
+      // Logout sudah diproses di service; tampilkan info bila ada error jaringan.
+      alert(
+        "Logout dikirim, tapi ada kendala koneksi: " +
+          (err instanceof Error ? err.message : "unknown") +
+          "\nStatus akan diperbarui otomatis."
+      );
     } finally {
+      // Selalu segarkan status supaya UI mencerminkan kondisi terbaru.
+      await load();
       setLoggingOut(false);
     }
   };
